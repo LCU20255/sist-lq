@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="es" class="h-full bg-slate-50 text-slate-900">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}SIST-LQ - Sistema de Facturación y Control{% endblock %}</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- SweetAlert2 CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#f8fafc',
+                            100: '#f1f5f9',
+                            200: '#e2e8f0',
+                            300: '#cbd5e1',
+                            400: '#94a3b8',
+                            500: '#64748b',
+                            600: '#475569',
+                            700: '#334155',
+                            800: '#1e293b',
+                            900: '#0f172a',
+                            950: '#020617',
+                        },
+                        accent: {
+                            500: '#6366f1',
+                            600: '#4f46e5',
+                            700: '#4338ca',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Google Fonts Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <!-- Bootstrap Icons CDN -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .sidebar-scroll::-webkit-scrollbar { width: 4px; }
+        .sidebar-scroll::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
+    </style>
+    <!-- Flatpickr CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <link rel="stylesheet" type="text/css" href="https://npmcdn.com/flatpickr/dist/themes/airbnb.css">
+    {% block extra_head %}{% endblock %}
+</head>
+<body class="bg-slate-50 text-slate-800 antialiased min-h-screen flex flex-col md:flex-row">
+
+    <!-- =========================================================================
+         BARRA LATERAL / SIDEBAR (ESTILO ALEGRA SAAS)
+         ========================================================================= -->
+    <aside class="w-full md:w-64 bg-brand-900 text-white flex-shrink-0 flex flex-col justify-between shadow-2xl z-30 md:min-h-screen">
+        <div>
+            <!-- LOGO SIST-LQ -->
+            <div class="h-20 px-6 flex items-center justify-between border-b border-brand-800/80 bg-brand-950/40">
+                <a href="{{ url_for('main.dashboard') }}" class="flex items-center space-x-3 group">
+                    <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-600 to-accent-500 flex items-center justify-center text-white font-black text-xl shadow-lg shadow-brand-400/20 group-hover:scale-105 transition-transform">
+                        <i class="bi bi-layers-fill"></i>
+                    </div>
+                    <div>
+                        <div class="text-xl font-extrabold tracking-tight text-white flex items-center">
+                            SIST<span class="text-brand-300">-LQ</span>
+                        </div>
+                        <div class="text-[10px] font-semibold text-brand-300 uppercase tracking-widest">
+                            Control & Facturación
+                        </div>
+                    </div>
+                </a>
+            </div>
+
+            <!-- NAVEGACIÓN PRINCIPAL -->
+            <nav class="p-4 space-y-1.5 sidebar-scroll overflow-y-auto max-h-[calc(100vh-140px)]">
+                <a href="{{ url_for('main.dashboard') }}" 
+                   class="flex items-center px-4 py-3 text-sm font-semibold rounded-xl transition-all duration-200 {% if request.endpoint == 'main.dashboard' %}bg-brand-700/80 text-white shadow-md border-l-4 border-brand-300{% else %}text-brand-100/80 hover:bg-brand-800/60 hover:text-white{% endif %}">
+                    <i class="bi bi-grid-1x2-fill mr-3 text-lg text-brand-300"></i>
+                    Inicio - Dashboard
+                </a>
+
+                <button type="button" onclick="if(typeof openOffcanvas === 'function'){ openOffcanvas(); } else { window.location.href='{{ url_for('main.dashboard') }}?open_canvas=1'; }" 
+                   class="w-full text-left flex items-center px-4 py-3 text-sm font-semibold rounded-xl transition-all duration-200 text-brand-100/80 hover:bg-brand-800/60 hover:text-white">
+                    <i class="bi bi-file-earmark-plus-fill mr-3 text-lg text-brand-300"></i>
+                    Nueva Orden de Compra
+                </button>
+
+                <div class="pt-4 pb-2 px-4 text-[11px] font-bold text-brand-300/70 uppercase tracking-wider">
+                    Gestión y Operaciones
+                </div>
+
+                <button type="button" onclick="abrirVentanaEmergente('modalEmergenteOrdenes')" 
+                   class="w-full text-left flex items-center px-4 py-2.5 text-sm font-medium rounded-xl text-brand-100/80 hover:bg-brand-800/60 hover:text-white transition-all">
+                    <i class="bi bi-journal-check mr-3 text-base text-brand-300"></i>
+                    Órdenes Emitidas
+                </button>
+
+                <button type="button" onclick="abrirVentanaEmergente('modalEmergenteAuditoria')" 
+                   class="w-full text-left flex items-center px-4 py-2.5 text-sm font-medium rounded-xl text-brand-100/80 hover:bg-brand-800/60 hover:text-white transition-all">
+                    <i class="bi bi-shield-check mr-3 text-base text-brand-300"></i>
+                    Auditoría de Movimientos
+                </button>
+
+                <button type="button" onclick="abrirVentanaEmergente('modalEmergenteProveedores')" 
+                   class="w-full text-left flex items-center px-4 py-2.5 text-sm font-medium rounded-xl text-brand-100/80 hover:bg-brand-800/60 hover:text-white transition-all">
+                    <i class="bi bi-buildings-fill mr-3 text-base text-brand-300"></i>
+                    Proveedores
+                </button>
+
+                <button type="button" onclick="abrirVentanaEmergente('modalEmergenteProyectos')" 
+                   class="w-full text-left flex items-center px-4 py-2.5 text-sm font-medium rounded-xl text-brand-100/80 hover:bg-brand-800/60 hover:text-white transition-all">
+                    <i class="bi bi-briefcase-fill mr-3 text-base text-brand-300"></i>
+                    Proyectos
+                </button>
+
+                <button type="button" onclick="abrirVentanaEmergente('modalEmergenteCatalogo')" 
+                   class="w-full text-left flex items-center px-4 py-2.5 text-sm font-medium rounded-xl text-brand-100/80 hover:bg-brand-800/60 hover:text-white transition-all">
+                    <i class="bi bi-tags-fill mr-3 text-base text-brand-300"></i>
+                    Catálogo de Ítems
+                </button>
+            </nav>
+        </div>
+
+        <!-- FOOTER SIDEBAR (USUARIO CONECTADO + LOGOUT) -->
+        <div class="p-4 border-t border-brand-800/80 bg-brand-950/30">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-3 overflow-hidden">
+                    <div class="w-9 h-9 rounded-full bg-brand-700 border-2 border-brand-400 flex items-center justify-center font-bold text-xs text-white">
+                        {{ (session.get('user_nombre', 'U')[:2]).upper() }}
+                    </div>
+                    <div class="truncate">
+                        <p class="text-xs font-bold text-white truncate">{{ session.get('user_nombre', 'Loreidy Quiñonez') }}</p>
+                        <span class="inline-block px-1.5 py-0.5 text-[10px] bg-brand-800 text-brand-200 rounded font-semibold">
+                            {{ (session.get('user_rol', 'Administrador')).capitalize() }}
+                        </span>
+                    </div>
+                </div>
+                <a href="{{ url_for('main.logout') }}" 
+                   title="Cerrar Sesión"
+                   class="p-2 text-brand-300 hover:text-rose-300 hover:bg-brand-800 rounded-lg transition-colors">
+                    <i class="bi bi-box-arrow-right text-lg"></i>
+                </a>
+            </div>
+        </div>
+    </aside>
+
+    <!-- =========================================================================
+         ÁREA DE CONTENIDO PRINCIPAL
+         ========================================================================= -->
+    <div class="flex-1 flex flex-col min-w-0 overflow-hidden">
+
+        <!-- TOPBAR CON TICKER BCV EN VIVO -->
+        <header class="bg-white border-b border-slate-200 sticky top-0 z-20 shadow-sm px-6 py-3.5 flex flex-col sm:flex-row items-center justify-between gap-4">
+            
+            <!-- Título de la sección o ruta -->
+            <div class="flex items-center space-x-3">
+                <h1 class="text-xl font-black text-slate-800 tracking-tight">
+                    {% block page_title %}Panel Principal{% endblock %}
+                </h1>
+            </div>
+
+            <!-- Ticker de Cotización BCV en Tiempo Real -->
+            <div class="flex items-center gap-3 flex-wrap">
+                <div class="flex items-center bg-slate-100/90 border border-slate-200 px-3 py-1.5 rounded-xl text-xs space-x-3 shadow-inner">
+                    <span class="font-bold text-brand-800 flex items-center">
+                        <i class="bi bi-bank2 mr-1.5 text-brand-600"></i>BCV Oficial:
+                    </span>
+                    <span class="font-mono font-semibold text-slate-700">
+                        USD: <strong class="text-emerald-700">${{ format_decimal(info_bcv.tasa_usd if info_bcv else 804.8109, 2) }} Bs</strong>
+                    </span>
+                    <span class="text-slate-300">|</span>
+                    <span class="font-mono font-semibold text-slate-700">
+                        EUR: <strong class="text-indigo-700">€{{ format_decimal(info_bcv.tasa_eur if info_bcv else 932.8080, 2) }} Bs</strong>
+                    </span>
+                </div>
+
+                <!-- Botón de Acción Principal del Header -->
+                {% block header_actions %}{% endblock %}
+            </div>
+        </header>
+
+        <!-- FLASH NOTIFICATIONS -->
+        <div class="px-6 pt-4">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="mb-4 flex items-center p-4 rounded-xl text-sm font-medium shadow-sm transition-all duration-300 
+                            {% if category == 'success' %} bg-emerald-50 text-emerald-800 border border-emerald-200
+                            {% elif category == 'danger' %} bg-rose-50 text-rose-800 border border-rose-200
+                            {% elif category == 'warning' %} bg-amber-50 text-amber-800 border border-amber-200
+                            {% else %} bg-sky-50 text-sky-800 border border-sky-200 {% endif %}">
+                            <i class="bi {% if category == 'success' %}bi-check-circle-fill text-emerald-600{% elif category == 'danger' %}bi-exclamation-octagon-fill text-rose-600{% elif category == 'warning' %}bi-exclamation-triangle-fill text-amber-600{% else %}bi-info-circle-fill text-sky-600{% endif %} mr-3 text-lg"></i>
+                            <span class="flex-1">{{ message }}</span>
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+        </div>
+
+        <!-- MAIN VIEW CONTENT -->
+        <main class="flex-1 p-6 md:p-8 max-w-7xl mx-auto w-full overflow-y-auto">
+            {% block content %}{% endblock %}
+        </main>
+
+        <!-- FOOTER GLOBAL -->
+        <footer class="bg-white border-t border-slate-200 py-4 px-6 text-center text-xs text-slate-500">
+            <strong>SIST-LQ</strong> — Sistema Integral de Facturación y Órdenes de Compra © 2026.
+        </footer>
+    </div>
+
+    <!-- VENTANAS EMERGENTES (MODALES) DE GESTIÓN Y OPERACIONES -->
+    {% include "modals_gestion.html" %}
+
+    <!-- Flatpickr JS -->
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script src="https://npmcdn.com/flatpickr/dist/l10n/es.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            flatpickr(".flatpickr-date", {
+                locale: "es",
+                dateFormat: "Y-m-d",
+                allowInput: true
+            });
+        });
+    </script>
+    {% block extra_scripts %}{% endblock %}
+</body>
+</html>

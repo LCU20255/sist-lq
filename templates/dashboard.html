@@ -1,0 +1,1589 @@
+{% extends "layout.html" %}
+
+{% block title %}Dashboard - SIST-LQ{% endblock %}
+{% block page_title %}Panel de Control Principal{% endblock %}
+
+{% block header_actions %}
+<button type="button" onclick="openOffcanvas()" 
+        class="inline-flex items-center px-5 py-2.5 bg-gradient-to-r from-teal-600 to-brand-700 hover:from-teal-700 hover:to-brand-800 text-white text-xs font-extrabold rounded-2xl shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all">
+    <i class="bi bi-plus-lg mr-2 text-base"></i>Nueva Orden de Compra
+</button>
+{% endblock %}
+
+{% block content %}
+<div class="space-y-8 pb-16">
+
+    <!-- =========================================================================
+         1. BANNER DE BIENVENIDA (ESTILO TUSFACTURASAPP / SAAS MODERNO)
+         ========================================================================= -->
+    <div class="bg-gradient-to-r from-brand-900 via-brand-800 to-teal-700 rounded-3xl p-6 md:p-8 text-white shadow-xl relative overflow-hidden flex flex-col md:flex-row items-center justify-between gap-6">
+        <div class="absolute -right-10 -bottom-10 w-64 h-64 bg-white/5 rounded-full blur-2xl pointer-events-none"></div>
+        <div class="absolute right-1/3 top-0 w-32 h-32 bg-brand-400/10 rounded-full blur-xl pointer-events-none"></div>
+
+        <div class="space-y-2 z-10 text-center md:text-left">
+            <div class="inline-flex items-center px-3 py-1 rounded-full bg-white/10 backdrop-blur-md text-brand-200 text-xs font-bold border border-white/10 mb-1">
+                <i class="bi bi-check-circle-fill mr-1.5 text-brand-300"></i>Espacio activo: SIST-LQ Corporativo
+            </div>
+            <h2 class="text-2xl md:text-3xl font-black tracking-tight">
+                ¡Hola, {{ session.get('user_nombre', 'Loreidy') }}!
+            </h2>
+            <p class="text-xs md:text-sm text-brand-100/90 max-w-xl font-medium">
+                Gestión automatizada de adquisiciones, control bimonetario USD/Bs con cotización en tiempo real del BCV y formato oficial Tiuna Complejo Industrial.
+            </p>
+        </div>
+
+        <div class="flex items-center gap-3 z-10 flex-shrink-0">
+            <button type="button" onclick="openOffcanvas()" 
+               class="px-5 py-3 bg-white hover:bg-brand-50 text-brand-900 text-xs font-black rounded-2xl shadow-lg hover:shadow-xl transition-all flex items-center">
+                <i class="bi bi-file-earmark-plus-fill mr-2 text-brand-600 text-base"></i>Emitir Orden en Canvas
+            </button>
+            <button type="button" onclick="document.getElementById('auditoria-section').scrollIntoView({behavior: 'smooth'})"
+                    class="px-4 py-3 bg-black/20 hover:bg-black/30 border border-white/20 text-white text-xs font-bold rounded-2xl transition-all flex items-center">
+                <i class="bi bi-shield-check mr-2 text-brand-300 text-base"></i>Auditoría
+            </button>
+        </div>
+    </div>
+
+    <!-- =========================================================================
+         2. TARJETAS DE MÉTRICAS / KPI (USD, BS, ÓRDENES, TASA BCV)
+         ========================================================================= -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+        
+        <!-- Tarjeta 1: Total Facturado USD -->
+        <div class="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm hover:shadow-md transition-shadow group">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Total Facturado USD</p>
+                    <h3 class="text-2xl font-black text-slate-900 mt-1">
+                        ${{ format_decimal(ordenes | sum(attribute='total_usd')) }}
+                    </h3>
+                </div>
+                <div class="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-xl group-hover:scale-110 transition-transform">
+                    <i class="bi bi-currency-dollar"></i>
+                </div>
+            </div>
+            <div class="mt-3 text-[11px] font-semibold text-emerald-700 flex items-center">
+                <i class="bi bi-graph-up-arrow mr-1"></i>Facturación consolidada
+            </div>
+        </div>
+
+        <!-- Tarjeta 2: Total en Bolívares (Bs) -->
+        <div class="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm hover:shadow-md transition-shadow group">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Total Bolívares (Bs)</p>
+                    <h3 class="text-xl font-black text-slate-900 mt-1 truncate max-w-[160px]">
+                        Bs. {{ format_decimal(ordenes | sum(attribute='total_bs')) }}
+                    </h3>
+                </div>
+                <div class="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center text-xl group-hover:scale-110 transition-transform">
+                    <i class="bi bi-cash-stack"></i>
+                </div>
+            </div>
+            <div class="mt-3 text-[11px] font-semibold text-amber-700 flex items-center">
+                <i class="bi bi-calculator mr-1"></i>T/C BCV Aplicada
+            </div>
+        </div>
+
+        <!-- Tarjeta 3: Cantidad de Órdenes -->
+        <div class="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm hover:shadow-md transition-shadow group">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Órdenes Emitidas</p>
+                    <h3 class="text-2xl font-black text-slate-900 mt-1">
+                        {{ ordenes|length }}
+                    </h3>
+                </div>
+                <div class="w-12 h-12 rounded-2xl bg-brand-50 text-brand-600 flex items-center justify-center text-xl group-hover:scale-110 transition-transform">
+                    <i class="bi bi-file-earmark-check-fill"></i>
+                </div>
+            </div>
+            <div class="mt-3 text-[11px] font-semibold text-brand-700 flex items-center">
+                <i class="bi bi-shield-check mr-1"></i>Registros inmutables
+            </div>
+        </div>
+
+        <!-- Tarjeta 4: Tasa BCV Dólar Hoy -->
+        <div class="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm hover:shadow-md transition-shadow group">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Dólar BCV Oficial</p>
+                    <h3 class="text-xl font-black text-indigo-700 mt-1 font-mono">
+                        {{ format_decimal(info_bcv.tasa_usd if info_bcv else 804.8109, 4) }}
+                    </h3>
+                </div>
+                <div class="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center text-xl group-hover:scale-110 transition-transform">
+                    <i class="bi bi-bank"></i>
+                </div>
+            </div>
+            <div class="mt-3 text-[11px] font-semibold text-indigo-700 flex items-center">
+                <i class="bi bi-arrow-repeat mr-1"></i>En tiempo real hoy
+            </div>
+        </div>
+
+    </div>
+
+    <!-- =========================================================================
+         3. TABLA DE ÓRDENES DE COMPRA EMITIDAS
+         ========================================================================= -->
+    <div id="ordenes" class="bg-white border border-slate-200 rounded-3xl shadow-sm overflow-hidden">
+        
+        <div class="p-6 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+                <h3 class="text-base font-black text-slate-900 flex items-center">
+                    <i class="bi bi-journal-text text-brand-600 mr-2 text-xl"></i>
+                    Órdenes de Compra Emitidas
+                </h3>
+                <p class="text-xs text-slate-400 mt-0.5 font-medium">
+                    Historial de órdenes registradas en el sistema con snapshot inmutable del proveedor
+                </p>
+            </div>
+            <div class="flex items-center space-x-3">
+                <button type="button" onclick="openOffcanvas()" 
+                        class="inline-flex items-center px-3.5 py-1.5 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-xs font-bold shadow-sm transition-all">
+                    <i class="bi bi-plus-circle mr-1.5"></i>Nueva Orden
+                </button>
+                <span class="text-xs bg-slate-100 text-slate-700 font-bold px-3 py-1.5 rounded-xl border border-slate-200">
+                    {{ ordenes|length }} Órdenes
+                </span>
+            </div>
+        </div>
+
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs text-slate-700">
+                <thead class="bg-slate-50 text-slate-600 uppercase font-bold text-[10px] tracking-wider border-b border-slate-100">
+                    <tr>
+                        <th class="px-6 py-4">Nro. Orden</th>
+                        <th class="px-6 py-4">Fecha Emisión</th>
+                        <th class="px-6 py-4">Proveedor (Beneficiario)</th>
+                        <th class="px-6 py-4">Proyecto</th>
+                        <th class="px-6 py-4 text-right">Tasa BCV</th>
+                        <th class="px-6 py-4 text-right">Total USD</th>
+                        <th class="px-6 py-4 text-right">Total Bs</th>
+                        <th class="px-6 py-4 text-center">Estado</th>
+                        <th class="px-6 py-4 text-center">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    {% if ordenes %}
+                        {% for orden in ordenes %}
+                            <tr class="hover:bg-slate-50/80 transition-colors">
+                                <td class="px-6 py-4 font-mono font-black text-brand-700 whitespace-nowrap">
+                                    {{ orden.nro_orden }}
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-slate-600 font-medium">
+                                    {{ orden.fecha_emision }}
+                                </td>
+                                <td class="px-6 py-4">
+                                    <div class="font-bold text-slate-900">{{ orden.proveedor_razon_social }}</div>
+                                    <div class="text-[10px] text-slate-400 font-mono">{{ orden.proveedor_rif }}</div>
+                                </td>
+                                <td class="px-6 py-4 text-slate-700 font-semibold">
+                                    {{ orden.proyecto_nombre or (orden.proyectos.nombre if orden.proyectos else 'General') }}
+                                </td>
+                                <td class="px-6 py-4 text-right font-mono text-slate-500 font-bold">
+                                    {{ format_decimal(orden.tasa_bcv, 4) }}
+                                </td>
+                                <td class="px-6 py-4 text-right font-black text-emerald-700 text-sm">
+                                    ${{ format_decimal(orden.total_usd) }}
+                                </td>
+                                <td class="px-6 py-4 text-right font-black text-slate-900">
+                                    Bs. {{ format_decimal(orden.total_bs) }}
+                                </td>
+                                <td class="px-6 py-4 text-center">
+                                    <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-black bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                        <i class="bi bi-circle-fill text-[6px] mr-1.5 text-emerald-500"></i>{{ orden.estado or 'Emitida' }}
+                                    </span>
+                                </td>
+                                <td class="px-6 py-4 text-center whitespace-nowrap">
+                                    <a href="{{ url_for('main.orden_pdf', orden_id=orden.id) }}" target="_blank"
+                                       class="inline-flex items-center px-3.5 py-1.5 bg-brand-50 hover:bg-brand-100 text-brand-800 rounded-xl border border-brand-200 font-bold text-xs shadow-sm hover:shadow transition-all">
+                                        <i class="bi bi-file-earmark-pdf-fill mr-1.5 text-rose-600"></i>Ver PDF
+                                    </a>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="9" class="px-6 py-12 text-center text-slate-400">
+                                <i class="bi bi-inbox text-4xl mb-2 block text-slate-300"></i>
+                                <p class="font-bold text-slate-600">No hay órdenes registradas aún.</p>
+                                <button type="button" onclick="openOffcanvas()" class="mt-3 text-xs text-brand-600 font-bold hover:underline">
+                                    + Crear la primera orden de compra en Canvas →
+                                </button>
+                            </td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- =========================================================================
+         4. HISTORIAL DE AUDITORÍA Y MOVIMIENTOS EN TIEMPO REAL (Solo Admins)
+         ========================================================================= -->
+    {% if session.get('user_rol') == 'admin' %}
+    <div id="auditoria-section" class="bg-white border border-slate-200 rounded-3xl shadow-sm overflow-hidden">
+        <div class="p-6 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+                <h3 class="text-base font-black text-slate-900 flex items-center">
+                    <i class="bi bi-shield-check text-indigo-600 mr-2 text-xl"></i>
+                    Auditoría de Movimientos & Trazabilidad
+                </h3>
+                <p class="text-xs text-slate-400 mt-0.5 font-medium">
+                    Registro de acciones en el sistema: quién creó, modificó o emitió órdenes y catálogo
+                </p>
+            </div>
+            <span class="text-[11px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-3 py-1 rounded-xl">
+                <i class="bi bi-clock-history mr-1"></i>Tiempo Real
+            </span>
+        </div>
+
+        <div class="overflow-x-auto max-h-80 overflow-y-auto">
+            <table class="w-full text-left text-xs text-slate-700">
+                <thead class="bg-slate-50 text-slate-500 uppercase font-bold text-[10px] tracking-wider sticky top-0 border-b border-slate-100">
+                    <tr>
+                        <th class="px-6 py-3 w-40">Fecha y Hora</th>
+                        <th class="px-6 py-3 w-48">Usuario</th>
+                        <th class="px-6 py-3 w-36">Acción</th>
+                        <th class="px-6 py-3 w-28">Módulo</th>
+                        <th class="px-6 py-3">Descripción del Movimiento</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    {% for mov in movimientos %}
+                        <tr class="hover:bg-slate-50/80 transition-colors">
+                            <td class="px-6 py-3.5 font-mono text-slate-500 whitespace-nowrap text-[11px]">
+                                {{ mov.created_at[:16].replace('T', ' ') if mov.created_at else '' }}
+                            </td>
+                            <td class="px-6 py-3.5 font-bold text-slate-900 flex items-center">
+                                <div class="w-6 h-6 rounded-full bg-slate-100 border border-slate-200 text-slate-700 flex items-center justify-center font-bold text-[10px] mr-2">
+                                    {{ (mov.usuario_nombre[:2] if mov.usuario_nombre else 'U').upper() }}
+                                </div>
+                                {{ mov.usuario_nombre }}
+                            </td>
+                            <td class="px-6 py-3.5">
+                                <span class="px-2.5 py-1 rounded-lg text-[10px] font-extrabold
+                                    {% if 'EMITIR' in mov.accion %} bg-emerald-50 text-emerald-700 border border-emerald-200
+                                    {% elif 'ITEM' in mov.accion %} bg-blue-50 text-blue-700 border border-blue-200
+                                    {% elif 'PROV' in mov.accion %} bg-purple-50 text-purple-700 border border-purple-200
+                                    {% elif 'LOGIN' in mov.accion %} bg-amber-50 text-amber-700 border border-amber-200
+                                    {% else %} bg-slate-100 text-slate-700 border border-slate-200 {% endif %}">
+                                    {{ mov.accion }}
+                                </span>
+                            </td>
+                            <td class="px-6 py-3.5 text-slate-500 font-bold uppercase text-[10px]">
+                                {{ mov.modulo }}
+                            </td>
+                            <td class="px-6 py-3.5 text-slate-700 font-medium">
+                                {{ mov.descripcion }}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+</div>
+
+<!-- =========================================================================
+     5. FORMULARIO TIPO CANVAS (SLIDE-OVER LATERAL INTERACTIVO Y COMPLETO)
+     ========================================================================= -->
+<div id="offcanvasOverlay" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 hidden opacity-0 transition-opacity duration-300" onclick="closeOffcanvas()"></div>
+
+<div id="offcanvasPanel" class="fixed inset-y-0 right-0 z-50 w-full max-w-4xl bg-slate-100 shadow-2xl transform translate-x-full transition-transform duration-300 ease-in-out flex flex-col border-l border-slate-300">
+    
+    <!-- Header del Canvas -->
+    <div class="px-6 py-4 border-b border-slate-200 bg-white flex items-center justify-between sticky top-0 z-20 shadow-sm">
+        <div class="flex items-center space-x-3">
+            <div class="w-10 h-10 rounded-2xl bg-gradient-to-tr from-brand-600 to-teal-500 text-white flex items-center justify-center text-xl shadow-md">
+                <i class="bi bi-file-earmark-plus-fill"></i>
+            </div>
+            <div>
+                <h3 class="text-lg font-black text-slate-900 tracking-tight flex items-center">
+                    Nueva Orden de Compra
+                    <span class="ml-3 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-brand-50 text-brand-800 border border-brand-200">
+                        CANVAS SIST-LQ
+                    </span>
+                </h3>
+                <p class="text-xs text-slate-400 font-medium">Emisión bimonetaria instantánea con formato oficial Tiuna Complejo Industrial</p>
+            </div>
+        </div>
+        <button onclick="closeOffcanvas()" class="w-9 h-9 rounded-2xl bg-slate-100 hover:bg-rose-50 hover:text-rose-600 flex items-center justify-center text-slate-500 transition-colors">
+            <i class="bi bi-x-lg text-lg"></i>
+        </button>
+    </div>
+
+    <!-- Cuerpo del Formulario en el Canvas -->
+    <div class="flex-1 overflow-y-auto p-6 space-y-6">
+        <form id="formNuevaOrdenCanvas" onsubmit="emitirOrdenCanvas(event)" class="space-y-6">
+
+            <!-- PASO 1: NÚMERO DE ORDEN Y FECHA -->
+            <div class="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm space-y-4">
+                <div class="flex items-center justify-between">
+                    <h4 class="text-xs font-black text-slate-700 uppercase tracking-wider flex items-center">
+                        <span class="w-5 h-5 rounded-full bg-brand-600 text-white inline-flex items-center justify-center text-[10px] mr-2">1</span>
+                        Identificación del Documento
+                    </h4>
+                    <span class="text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-xl">
+                        <i class="bi bi-check2-circle mr-1"></i>Correlativo Único Sugerido
+                    </span>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1.5">
+                            Número de Orden de Compra <span class="text-rose-500">*</span>
+                        </label>
+                        <div class="relative">
+                            <i class="bi bi-hash absolute left-3.5 top-3 text-slate-400 text-base"></i>
+                            <input type="text" id="canvas_nro_orden" name="nro_orden" required
+                                   value="{{ siguiente_nro_orden }}"
+                                   placeholder="000270"
+                                   class="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 font-mono font-black text-sm focus:ring-2 focus:ring-brand-500 focus:bg-white outline-none transition-all">
+                        </div>
+                        <p class="text-[10px] text-slate-400 mt-1">Editable si deseas asignar un correlativo histórico específico.</p>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1.5">
+                            Fecha de Solicitud / Emisión <span class="text-rose-500">*</span>
+                        </label>
+                        <div class="relative">
+                             <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                            <i class="bi bi-calendar-date text-slate-400"></i>
+                        </div>
+                        <input type="text" name="fecha_emision" required placeholder="YYYY-MM-DD" value="{{ datetime.datetime.now().strftime('%Y-%m-%d') }}"
+                               class="flatpickr-date w-full pl-4 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 font-bold text-xs outline-none focus:bg-white focus:ring-2 focus:ring-blue-500 transition-all">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- PASO 2: PROYECTO Y PROVEEDOR (BENEFICIARIO) -->
+            <div class="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm space-y-4">
+                <div class="flex items-center justify-between">
+                    <h4 class="text-xs font-black text-slate-700 uppercase tracking-wider flex items-center">
+                        <span class="w-5 h-5 rounded-full bg-brand-600 text-white inline-flex items-center justify-center text-[10px] mr-2">2</span>
+                        Proyecto & Proveedor Beneficiario
+                    </h4>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <!-- Proyecto -->
+                    <div>
+                        <div class="flex items-center justify-between mb-1.5">
+                            <label class="text-xs font-bold text-slate-700">Proyecto Destino <span class="text-rose-500">*</span></label>
+                            <button type="button" onclick="abrirModalNuevoProyecto()" class="text-[11px] font-extrabold text-brand-600 hover:underline flex items-center">
+                                <i class="bi bi-plus-circle mr-1"></i>+ Nuevo
+                            </button>
+                        </div>
+                        <select id="canvas_proyecto_id" name="proyecto_id" required
+                                class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 font-semibold text-xs focus:ring-2 focus:ring-brand-500 focus:bg-white outline-none transition-all">
+                            {% for proy in proyectos %}
+                                <option value="{{ proy.id }}" {% if 'REDES' in proy.nombre|upper or loop.first %}selected{% endif %}>
+                                    {{ proy.codigo }} — {{ proy.nombre }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <!-- Proveedor -->
+                    <div>
+                        <div class="flex items-center justify-between mb-1.5">
+                            <label class="text-xs font-bold text-slate-700">Proveedor (Razón Social) <span class="text-rose-500">*</span></label>
+                            <button type="button" onclick="abrirModalNuevoProveedor()" class="text-[11px] font-extrabold text-brand-600 hover:underline flex items-center">
+                                <i class="bi bi-plus-circle mr-1"></i>+ Nuevo
+                            </button>
+                        </div>
+                        <select id="canvas_proveedor_id" name="proveedor_id" required onchange="actualizarFichaProveedorCanvas()"
+                                class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 font-semibold text-xs focus:ring-2 focus:ring-brand-500 focus:bg-white outline-none transition-all">
+                            {% for prov in proveedores %}
+                                <option value="{{ prov.id }}" 
+                                        data-rif="{{ prov.rif }}"
+                                        data-beneficiario="{{ prov.beneficiario or prov.razon_social }}"
+                                        data-banco="{{ prov.banco }}"
+                                        data-cuenta="{{ prov.num_cuenta }}"
+                                        {% if loop.first %}selected{% endif %}>
+                                    {{ prov.razon_social }} ({{ prov.rif }})
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Ficha en vivo del Proveedor -->
+                <div id="canvasFichaProveedor" class="bg-slate-50 border border-slate-200 rounded-2xl p-3 text-xs grid grid-cols-2 md:grid-cols-4 gap-3 text-slate-700 relative pr-8">
+                    <button type="button" onclick="abrirModalEditarProveedor()" class="absolute top-3 right-3 text-slate-400 hover:text-brand-600 transition-colors" title="Editar Proveedor">
+                        <i class="bi bi-pencil-square text-sm"></i>
+                    </button>
+                    <div>
+                        <span class="text-[10px] text-slate-400 font-bold uppercase block">RIF:</span>
+                        <span id="canvasFichaRif" class="font-mono font-bold">-</span>
+                    </div>
+                    <div>
+                        <span class="text-[10px] text-slate-400 font-bold uppercase block">Beneficiario:</span>
+                        <span id="canvasFichaBeneficiario" class="font-bold truncate block">-</span>
+                    </div>
+                    <div>
+                        <span class="text-[10px] text-slate-400 font-bold uppercase block">Banco:</span>
+                        <span id="canvasFichaBanco" class="font-bold truncate block">-</span>
+                    </div>
+                    <div>
+                        <span class="text-[10px] text-slate-400 font-bold uppercase block">Nro de Cuenta:</span>
+                        <span id="canvasFichaCuenta" class="font-mono font-bold truncate block">-</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- PASO 3: COTIZACIÓN BCV (3 BOTONES INTELIGENTES + FECHA HISTÓRICA) -->
+            <div class="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm space-y-4">
+                <div class="flex items-center justify-between">
+                    <h4 class="text-xs font-black text-slate-700 uppercase tracking-wider flex items-center">
+                        <span class="w-5 h-5 rounded-full bg-brand-600 text-white inline-flex items-center justify-center text-[10px] mr-2">3</span>
+                        Tasa de Cambio BCV Oficial
+                    </h4>
+                    <span id="canvasBcvBadgeStatus" class="text-[11px] font-bold text-brand-800 bg-brand-50 border border-brand-200 px-3 py-1 rounded-xl flex items-center">
+                        <span class="ml-1 text-[10px] text-slate-400 font-bold tracking-wide">
+                            <i class="bi bi-check-circle-fill mr-1 text-slate-500"></i>Tasa Oficial BCV
+                        </span>
+                </div>
+
+                <!-- 3 Botones de Tipo de Tasa -->
+                <div>
+                    <label class="block text-xs font-bold text-slate-600 mb-2">Selecciona la Moneda Oficial:</label>
+                    <div class="grid grid-cols-3 gap-3">
+                        <button type="button" id="canvas_btn_tasa_usd" onclick="cambiarTipoTasaCanvas('USD')"
+                                class="py-3 px-3 rounded-2xl border-2 font-black text-xs flex flex-col items-center justify-center transition-all bg-brand-50 border-brand-600 text-brand-900 shadow-sm">
+                            <i class="bi bi-currency-dollar text-lg mb-0.5"></i>
+                            <span>Dólar BCV</span>
+                        </button>
+                        <button type="button" id="canvas_btn_tasa_eur" onclick="cambiarTipoTasaCanvas('EUR')"
+                                class="py-3 px-3 rounded-2xl border-2 font-black text-xs flex flex-col items-center justify-center transition-all bg-white border-slate-200 text-slate-600 hover:border-slate-300">
+                            <i class="bi bi-currency-euro text-lg mb-0.5"></i>
+                            <span>Euro BCV</span>
+                        </button>
+                        <button type="button" id="canvas_btn_tasa_prom" onclick="cambiarTipoTasaCanvas('PROMEDIO')"
+                                class="py-3 px-3 rounded-2xl border-2 font-black text-xs flex flex-col items-center justify-center transition-all bg-white border-slate-200 text-slate-600 hover:border-slate-300">
+                            <i class="bi bi-graph-up-arrow text-lg mb-0.5"></i>
+                            <span>Tasa Promedio</span>
+                        </button>
+                    </div>
+                    <input type="hidden" id="canvas_tipo_tasa" name="tipo_tasa" value="USD">
+                </div>
+
+                <!-- Fecha de la Tasa y Valor Numérico -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 items-center pt-2">
+                    <div>
+                        <div class="flex items-center justify-between mb-1.5">
+                            <label class="text-xs font-bold text-slate-700">Fecha de la Tasa BCV</label>
+                            <div class="flex space-x-1">
+                                <button type="button" onclick="setFechaTasaCanvas('hoy')" class="text-[10px] font-bold text-brand-700 bg-brand-50 hover:bg-brand-100 px-2 py-0.5 rounded-lg">Hoy</button>
+                                <button type="button" onclick="setFechaTasaCanvas('ayer')" class="text-[10px] font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 px-2 py-0.5 rounded-lg">Ayer</button>
+                                <button type="button" onclick="setFechaTasaCanvas('hace5dias')" class="text-[10px] font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 px-2 py-0.5 rounded-lg">-5 Días</button>
+                            </div>
+                        </div>
+                        <div class="relative mt-1">
+                            <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                                <i class="bi bi-calendar-date text-slate-400"></i>
+                            </div>
+                            <input type="text" id="canvas_fecha_tasa" onchange="consultarTasaBcvCanvas()" placeholder="YYYY-MM-DD"
+                                   class="flatpickr-date w-full pl-4 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 font-bold text-xs outline-none focus:bg-white focus:ring-2 focus:ring-blue-500 transition-all">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1.5">Valor Tasa Aplicada (Bs / $)</label>
+                        <div class="relative">
+                            <span class="absolute left-3.5 top-2.5 text-xs font-mono font-bold text-slate-400">Bs.</span>
+                            <input type="number" step="0.0001" id="canvas_tasa_bcv" name="tasa_bcv" required oninput="recalcularTotalesCanvas()"
+                                   value="{{ info_bcv.tasa_usd if info_bcv else '804.8109' }}"
+                                   class="w-full pl-10 pr-4 py-2.5 bg-amber-50/60 border-2 border-amber-300 rounded-2xl text-slate-900 font-mono font-black text-sm focus:ring-2 focus:ring-brand-500 outline-none">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- PASO 4: RENGLONES / PRODUCTOS Y SERVICIOS -->
+            <div class="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm space-y-4">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h4 class="text-xs font-black text-slate-700 uppercase tracking-wider flex items-center">
+                            <span class="w-5 h-5 rounded-full bg-brand-600 text-white inline-flex items-center justify-center text-[10px] mr-2">4</span>
+                            Renglones de la Orden
+                        </h4>
+                        <p class="text-[11px] text-slate-400 font-medium">Ingresa los ítems adquiridos o carga desde el catálogo</p>
+                    </div>
+
+                    <!-- Dropdown catálogo rápido -->
+                    <div class="flex items-center space-x-2">
+                        <select id="canvasSelectCatalogo" onchange="cargarDesdeCatalogoCanvas(this)"
+                                class="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 outline-none">
+                            <option value="">⚡ Agregar de Catálogo...</option>
+                            {% for it in items_cat %}
+                                <option value="{{ it.id }}" data-desc="{{ it.descripcion }}" data-unid="{{ it.unidad }}" data-precio="{{ it.precio_unitario_usd }}">
+                                    {{ it.codigo }} — {{ it.descripcion }} (${{ it.precio_unitario_usd }})
+                                </option>
+                            {% endfor %}
+                        </select>
+
+                        <button type="button" onclick="abrirModalEditarItem()" class="px-2.5 py-1.5 bg-slate-50 text-slate-400 hover:text-brand-600 hover:bg-white border border-slate-200 rounded-xl shadow-sm transition-all" title="Editar Ítem Seleccionado">
+                            <i class="bi bi-pencil-square"></i>
+                        </button>
+                        <button type="button" onclick="abrirModalNuevoItem()" 
+                                class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded-xl text-xs font-bold flex items-center shadow-sm">
+                            <i class="bi bi-tag-fill mr-1 text-slate-500"></i>+ Nuevo al Catálogo
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Tabla de ítems -->
+                <div class="overflow-x-auto border border-slate-200 rounded-2xl">
+                    <table class="w-full text-left text-xs" id="canvasTablaItems">
+                        <thead class="bg-slate-900 text-white uppercase font-bold text-[10px]">
+                            <tr>
+                                <th class="px-3 py-3 w-10 text-center">#</th>
+                                <th class="px-3 py-3">Descripción del Producto o Servicio</th>
+                                <th class="px-3 py-3 w-20 text-center">Cant.</th>
+                                <th class="px-3 py-3 w-24 text-center">Unidad</th>
+                                <th class="px-3 py-3 w-28 text-right">Precio ($)</th>
+                                <th class="px-3 py-3 w-28 text-right">Total ($)</th>
+                                <th class="px-2 py-3 w-10 text-center"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="canvasItemsBody" class="divide-y divide-slate-100 bg-white">
+                            <!-- Filas agregadas desde el catálogo -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- PASO 5: TOTALES BIMONETARIOS Y CONDICIÓN DE IVA -->
+            <div class="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm space-y-4">
+                <div class="flex items-center justify-between">
+                    <h4 class="text-xs font-black text-slate-700 uppercase tracking-wider flex items-center">
+                        <span class="w-5 h-5 rounded-full bg-brand-600 text-white inline-flex items-center justify-center text-[10px] mr-2">5</span>
+                        Cálculo Financiero Bimonetario
+                    </h4>
+
+                    <!-- Toggle IVA -->
+                    <label class="inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="canvas_aplica_iva" name="aplica_iva" onchange="recalcularTotalesCanvas()" class="sr-only peer">
+                        <div class="relative w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+                        <span class="ml-2 text-xs font-black text-slate-700"><i class="bi bi-receipt text-slate-400 mr-1"></i>¿Aplica IVA 16%?</span>
+                    </label>
+                </div>
+
+                <!-- Cuadro de Totales Dual -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <!-- Totales USD -->
+                    <div class="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-2 text-xs">
+                        <div class="flex justify-between text-slate-500 font-semibold">
+                            <span>Subtotal USD:</span>
+                            <span id="canvasDispSubtotalUsd">$0.00</span>
+                        </div>
+                        <div class="flex justify-between text-slate-500 font-semibold">
+                            <span>IVA 16% USD:</span>
+                            <span id="canvasDispIvaUsd">$0.00</span>
+                        </div>
+                        <div class="pt-2 border-t border-slate-200 flex justify-between items-baseline font-black">
+                            <span class="text-slate-800 text-sm">TOTAL USD:</span>
+                            <span id="canvasDispTotalUsd" class="text-xl text-emerald-700">$0.00</span>
+                        </div>
+                    </div>
+
+                    <!-- Totales Bolívares con Franja Amarilla -->
+                    <div class="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-2 text-xs">
+                        <div class="bg-amber-300 text-slate-900 px-3 py-1 rounded-xl font-bold flex justify-between items-center text-[11px]">
+                            <span>TASA T/C BCV:</span>
+                            <span id="canvasDispTcBar" class="font-mono">804.8109 Bs</span>
+                        </div>
+                        <div class="flex justify-between text-slate-500 font-semibold">
+                            <span>Subtotal Bs:</span>
+                            <span id="canvasDispSubtotalBs">Bs. 0,00</span>
+                        </div>
+                        <div class="flex justify-between text-slate-500 font-semibold">
+                            <span>IVA 16% Bs:</span>
+                            <span id="canvasDispIvaBs">Bs. 0,00</span>
+                        </div>
+                        <div class="pt-1 border-t border-slate-200 flex justify-between items-baseline font-black">
+                            <span class="text-slate-800 text-sm">TOTAL BS:</span>
+                            <span id="canvasDispTotalBs" class="text-lg text-slate-900">Bs. 0,00</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- PASO 6: FIRMAS Y OBSERVACIONES -->
+            <div class="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm space-y-4">
+                <div class="flex items-center justify-between">
+                    <h4 class="text-xs font-black text-slate-700 uppercase tracking-wider flex items-center">
+                        <span class="w-5 h-5 rounded-full bg-brand-600 text-white inline-flex items-center justify-center text-[10px] mr-2">6</span>
+                        Firmantes Autorizados & Observaciones
+                    </h4>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <div class="flex items-center justify-between mb-1.5">
+                            <label class="text-xs font-bold text-slate-700">Solicitado Por:</label>
+                            <button type="button" onclick="abrirModalNuevoFirmante('solicitado')" class="text-[11px] font-extrabold text-blue-600 hover:underline flex items-center">
+                                <i class="bi bi-plus-circle mr-1"></i>+ Nuevo
+                            </button>
+                        </div>
+                        <select name="firmante_solicitado" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 font-bold text-xs outline-none">
+                            {% for f in firmantes %}
+                                <option value="{{ f.nombre }}" {% if 'LOREIDY' in f.nombre|upper %}selected{% endif %}>
+                                    {{ f.nombre }} ({{ f.cargo }})
+                                </option>
+                            {% endfor %}
+                            <option value="LOREIDY QUIÑONEZ" selected>LOREIDY QUIÑONEZ (Solicitado)</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <div class="flex items-center justify-between mb-1.5">
+                            <label class="text-xs font-bold text-slate-700">Revisado Por:</label>
+                            <button type="button" onclick="abrirModalNuevoFirmante('revisado')" class="text-[11px] font-extrabold text-blue-600 hover:underline flex items-center">
+                                <i class="bi bi-plus-circle mr-1"></i>+ Nuevo
+                            </button>
+                        </div>
+                        <select name="firmante_revisado" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 font-bold text-xs outline-none">
+                            {% for f in firmantes %}
+                                <option value="{{ f.nombre }}" {% if 'RAMON' in f.nombre|upper %}selected{% endif %}>
+                                    {{ f.nombre }} ({{ f.cargo }})
+                                </option>
+                            {% endfor %}
+                            <option value="RAMON RIVAS" selected>RAMON RIVAS (Revisado)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1.5">Observaciones Adicionales (Opcional):</label>
+                    <textarea name="observaciones" rows="2" placeholder="Notas sobre la entrega, garantías o condiciones..."
+                              class="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-medium text-slate-800 outline-none"></textarea>
+                </div>
+            </div>
+
+            <!-- BOTÓN DE EMISIÓN PRINCIPAL -->
+            <div class="pt-2 sticky bottom-0 bg-slate-100/90 backdrop-blur-md pb-4 z-10">
+                <button type="submit" id="btnSubmitCanvas"
+                        class="w-full py-4 bg-gradient-to-r from-teal-600 via-brand-700 to-brand-800 hover:from-teal-700 hover:to-brand-900 text-white font-black text-sm rounded-2xl shadow-xl hover:shadow-2xl transition-all flex items-center justify-center uppercase tracking-wider">
+                    <i class="bi bi-file-earmark-check-fill mr-2 text-lg"></i>
+                    Emitir Orden de Compra Oficial
+                </button>
+            </div>
+
+        </form>
+    </div>
+</div>
+
+<!-- =========================================================================
+     MODAL DE ÉXITO TRAS EMISIÓN CON ENLACE DIRECTO AL PDF
+     ========================================================================= -->
+<div id="modalExitoEmision" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl text-center space-y-5 animate-scale-up">
+        <div class="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center text-3xl mx-auto shadow-inner">
+            <i class="bi bi-check-lg"></i>
+        </div>
+        <div>
+            <h3 class="text-xl font-black text-slate-900">¡Orden de Compra Emitida!</h3>
+            <p id="modalExitoTexto" class="text-xs text-slate-500 mt-1 font-medium">
+                La orden fue registrada exitosamente con snapshot inmutable.
+            </p>
+        </div>
+        <div class="flex flex-col gap-2.5">
+            <a id="modalExitoBtnPdf" href="#" target="_blank"
+               class="w-full py-3 bg-gradient-to-r from-emerald-600 to-teal-700 text-white font-black text-xs rounded-2xl shadow-lg hover:shadow-xl transition-all flex items-center justify-center">
+                <i class="bi bi-file-earmark-pdf-fill mr-2 text-base"></i> Abrir / Descargar Formato PDF
+            </a>
+            <button type="button" onclick="cerrarModalExitoYRecargar()" 
+                    class="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-2xl transition-colors">
+                Volver al Dashboard
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- =========================================================================
+     MODAL NUEVO PROYECTO RÁPIDO
+     ========================================================================= -->
+<div id="modalNuevoProyecto" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl space-y-4">
+        <div class="flex items-center justify-between border-b pb-3">
+            <h4 class="font-black text-sm text-slate-900">Nuevo Proyecto</h4>
+            <button onclick="document.getElementById('modalNuevoProyecto').classList.add('hidden')" class="text-slate-400 hover:text-slate-700">
+                <i class="bi bi-x-lg"></i>
+            </button>
+        </div>
+        <form onsubmit="guardarNuevoProyectoRapido(event)" class="space-y-3 text-xs">
+                <input type="hidden" id="modal_proy_codigo" value="">
+            <div>
+                <label class="block font-bold text-slate-700 mb-1">Nombre del Proyecto</label>
+                <input type="text" id="modal_proy_nombre" required placeholder="Ampliación Servidores" class="w-full px-3 py-2 bg-slate-50 border rounded-xl">
+            </div>
+            <button type="submit" class="w-full py-2.5 bg-brand-600 text-white font-bold rounded-xl shadow-md">Guardar y Seleccionar</button>
+        </form>
+    </div>
+</div>
+
+<!-- =========================================================================
+     MODAL NUEVO PROVEEDOR RÁPIDO
+     ========================================================================= -->
+<div id="modalNuevoProveedor" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4">
+        <div class="flex items-center justify-between border-b pb-3">
+            <h4 class="font-black text-sm text-slate-900">Nuevo Proveedor</h4>
+            <button onclick="document.getElementById('modalNuevoProveedor').classList.add('hidden')" class="text-slate-400 hover:text-slate-700">
+                <i class="bi bi-x-lg"></i>
+            </button>
+        </div>
+        <form onsubmit="guardarNuevoProveedorRapido(event)" class="space-y-3 text-xs">
+            <div>
+                <label class="block font-bold text-slate-700 mb-1">Razón Social</label>
+                <input type="text" id="modal_prov_razon" required placeholder="IDEATEX C.A." class="w-full px-3 py-2 bg-slate-50 border rounded-xl">
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+                <div>
+                    <label class="block font-bold text-slate-700 mb-1">RIF / Cédula</label>
+                    <div class="flex">
+                        <select id="modal_prov_rif_prefijo" class="px-2 py-2 bg-slate-50 border border-r-0 rounded-l-xl font-bold text-slate-700 outline-none">
+                            <option value="J">J</option>
+                            <option value="V">V</option>
+                            <option value="E">E</option>
+                            <option value="G">G</option>
+                            <option value="P">P</option>
+                        </select>
+                        <input type="text" id="modal_prov_rif_numero" required pattern="^\d{7,9}-?\d?$" placeholder="307780460" class="w-full px-2 py-2 bg-slate-50 border rounded-r-xl font-mono" title="Ingrese solo los números del RIF (ej. 307780460)">
+                    </div>
+                </div>
+                <div>
+                    <label class="block font-bold text-slate-700 mb-1">Banco</label>
+                    <select id="modal_prov_banco" required class="w-full px-3 py-2 bg-slate-50 border rounded-xl">
+                        <option value="Banesco">Banesco</option>
+                        <option value="Mercantil">Mercantil</option>
+                        <option value="Provincial">Provincial</option>
+                        <option value="Banco de Venezuela">Banco de Venezuela</option>
+                        <option value="Bancaribe">Bancaribe</option>
+                        <option value="Banco Exterior">Banco Exterior</option>
+                        <option value="Banco Nacional de Crédito (BNC)">BNC</option>
+                        <option value="Banco Plaza">Banco Plaza</option>
+                        <option value="Banplus">Banplus</option>
+                        <option value="Bancamiga">Bancamiga</option>
+                        <option value="Banco Bicentenario">Banco Bicentenario</option>
+                        <option value="Banco del Tesoro">Banco del Tesoro</option>
+                        <option value="Banco Activo">Banco Activo</option>
+                        <option value="100% Banco">100% Banco</option>
+                        <option value="Banco Sofitasa">Banco Sofitasa</option>
+                        <option value="Banco Caroní">Banco Caroní</option>
+                    </select>
+                </div>
+            </div>
+            <div>
+                <label class="block font-bold text-slate-700 mb-1">Nro de Cuenta Bancaria</label>
+                <input type="text" id="modal_prov_cuenta" required pattern="^\d{20}$" placeholder="0156-0030-61-0100004621 (Sin guiones)" class="w-full px-3 py-2 bg-slate-50 border rounded-xl font-mono" title="Debe contener exactamente 20 dígitos numéricos">
+            </div>
+            <button type="submit" class="w-full py-2.5 bg-brand-600 text-white font-bold rounded-xl shadow-md">Guardar y Seleccionar</button>
+        </form>
+    </div>
+</div>
+
+<!-- =========================================================================
+     MODAL NUEVO FIRMANTE RÁPIDO
+     ========================================================================= -->
+<div id="modalNuevoFirmante" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl space-y-4">
+        <div class="flex items-center justify-between border-b pb-3">
+            <h4 class="font-black text-sm text-slate-900">Nuevo Firmante</h4>
+            <button onclick="document.getElementById('modalNuevoFirmante').classList.add('hidden')" class="text-slate-400 hover:text-slate-700">
+                <i class="bi bi-x-lg"></i>
+            </button>
+        </div>
+        <form onsubmit="guardarNuevoFirmanteRapido(event)" class="space-y-3 text-xs">
+            <div>
+                <label class="block font-bold text-slate-700 mb-1">Nombre Completo</label>
+                <input type="text" id="modal_firm_nombre" required placeholder="Juan Pérez" class="w-full px-3 py-2 bg-slate-50 border rounded-xl">
+            </div>
+            <div>
+                <label class="block font-bold text-slate-700 mb-1">Cargo</label>
+                <input type="text" id="modal_firm_cargo" required placeholder="Gerente de Compras" class="w-full px-3 py-2 bg-slate-50 border rounded-xl">
+            </div>
+            <button type="submit" class="w-full py-2.5 bg-brand-600 text-white font-bold rounded-xl shadow-md">Guardar y Seleccionar</button>
+        </form>
+    </div>
+</div>
+
+<!-- =========================================================================
+     MODAL NUEVO ÍTEM RÁPIDO
+     ========================================================================= -->
+<div id="modalNuevoItem" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl space-y-4">
+        <div class="flex items-center justify-between border-b pb-3">
+            <h4 class="font-black text-sm text-slate-900">Nuevo Ítem a Catálogo</h4>
+            <button onclick="document.getElementById('modalNuevoItem').classList.add('hidden')" class="text-slate-400 hover:text-slate-700">
+                <i class="bi bi-x-lg"></i>
+            </button>
+        </div>
+        <form onsubmit="guardarNuevoItemRapido(event)" class="space-y-3 text-xs">
+            <div>
+                <label class="block font-bold text-slate-700 mb-1">Descripción del Producto/Servicio</label>
+                <input type="text" id="modal_item_desc" required placeholder="Cable UTP Cat 6" class="w-full px-3 py-2 bg-slate-50 border rounded-xl">
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+                <div>
+                    <div class="flex items-center justify-between mb-1">
+                        <label class="block font-bold text-slate-700">Unidad</label>
+                        <button type="button" onclick="agregarUnidad(this, 'modal_item_unid')" class="text-[10px] font-extrabold text-brand-600 hover:underline"><i class="bi bi-plus"></i></button>
+                    </div>
+                    <select id="modal_item_unid" class="w-full px-3 py-2 bg-slate-50 border rounded-xl">
+                        <option value="UND">UND</option>
+                        <option value="Metros">Metros</option>
+                        <option value="Horas">Horas</option>
+                        <option value="Servicios">Servicios</option>
+                        <option value="Lote">Lote</option>
+                        <option value="KG">KG</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block font-bold text-slate-700 mb-1">Precio Ref. ($)</label>
+                    <input type="number" id="modal_item_precio" step="0.01" min="0" required placeholder="0.00" class="w-full px-3 py-2 bg-slate-50 border rounded-xl font-mono text-right">
+                </div>
+            </div>
+            <button type="submit" class="w-full py-2.5 bg-brand-600 text-white font-bold rounded-xl shadow-md">Guardar y Añadir a la Orden</button>
+        </form>
+    </div>
+</div>
+
+<!-- =========================================================================
+     MODAL EDITAR PROVEEDOR
+     ========================================================================= -->
+<div id="modalEditarProveedor" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4 border-2 border-brand-500">
+        <div class="flex items-center justify-between border-b pb-3">
+            <h4 class="font-black text-sm text-slate-900 flex items-center"><i class="bi bi-pencil-square mr-2 text-brand-600"></i>Editar Proveedor</h4>
+            <button onclick="document.getElementById('modalEditarProveedor').classList.add('hidden')" class="text-slate-400 hover:text-slate-700">
+                <i class="bi bi-x-lg"></i>
+            </button>
+        </div>
+        <form onsubmit="guardarEdicionProveedor(event)" class="space-y-3 text-xs">
+            <input type="hidden" id="edit_prov_id">
+            <div>
+                <label class="block font-bold text-slate-700 mb-1">Razón Social</label>
+                <input type="text" id="edit_prov_razon" required class="w-full px-3 py-2 bg-slate-50 border rounded-xl">
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+                <div>
+                    <label class="block font-bold text-slate-700 mb-1">RIF / Cédula (Solo Lectura)</label>
+                    <input type="text" id="edit_prov_rif" readonly class="w-full px-3 py-2 bg-slate-100 border rounded-xl font-mono text-slate-500 cursor-not-allowed">
+                </div>
+                <div>
+                    <label class="block font-bold text-slate-700 mb-1">Banco</label>
+                    <select id="edit_prov_banco" required class="w-full px-3 py-2 bg-slate-50 border rounded-xl">
+                        <option value="Banesco">Banesco</option>
+                        <option value="Mercantil">Mercantil</option>
+                        <option value="Provincial">Provincial</option>
+                        <option value="Banco de Venezuela">Banco de Venezuela</option>
+                        <option value="Bancaribe">Bancaribe</option>
+                        <option value="Banco Exterior">Banco Exterior</option>
+                        <option value="Banco Nacional de Crédito (BNC)">BNC</option>
+                        <option value="Banco Plaza">Banco Plaza</option>
+                        <option value="Banplus">Banplus</option>
+                        <option value="Bancamiga">Bancamiga</option>
+                        <option value="Banco Bicentenario">Banco Bicentenario</option>
+                        <option value="Banco del Tesoro">Banco del Tesoro</option>
+                        <option value="Banco Activo">Banco Activo</option>
+                        <option value="100% Banco">100% Banco</option>
+                        <option value="Banco Sofitasa">Banco Sofitasa</option>
+                        <option value="Banco Caroní">Banco Caroní</option>
+                    </select>
+                </div>
+            </div>
+            <div>
+                <label class="block font-bold text-slate-700 mb-1">Nro de Cuenta Bancaria</label>
+                <input type="text" id="edit_prov_cuenta" required pattern="^\d{20}$" class="w-full px-3 py-2 bg-slate-50 border rounded-xl font-mono">
+            </div>
+            <button type="submit" class="w-full py-2.5 bg-brand-600 hover:bg-brand-700 text-white font-bold rounded-xl shadow-md">Guardar Cambios</button>
+        </form>
+    </div>
+</div>
+
+<!-- =========================================================================
+     MODAL EDITAR ÍTEM RÁPIDO
+     ========================================================================= -->
+<div id="modalEditarItem" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl space-y-4 border-2 border-brand-500">
+        <div class="flex items-center justify-between border-b pb-3">
+            <h4 class="font-black text-sm text-slate-900 flex items-center"><i class="bi bi-pencil-square mr-2 text-brand-600"></i>Editar Ítem de Catálogo</h4>
+            <button onclick="document.getElementById('modalEditarItem').classList.add('hidden')" class="text-slate-400 hover:text-slate-700">
+                <i class="bi bi-x-lg"></i>
+            </button>
+        </div>
+        <form onsubmit="guardarEdicionItem(event)" class="space-y-3 text-xs">
+            <input type="hidden" id="edit_item_id">
+            <div>
+                <label class="block font-bold text-slate-700 mb-1">Descripción del Producto/Servicio</label>
+                <input type="text" id="edit_item_desc" required class="w-full px-3 py-2 bg-slate-50 border rounded-xl">
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+                <div>
+                    <div class="flex items-center justify-between mb-1">
+                        <label class="block font-bold text-slate-700">Unidad</label>
+                        <button type="button" onclick="agregarUnidad(this, 'edit_item_unid')" class="text-[10px] font-extrabold text-brand-600 hover:underline"><i class="bi bi-plus"></i></button>
+                    </div>
+                    <select id="edit_item_unid" class="w-full px-3 py-2 bg-slate-50 border rounded-xl">
+                        <option value="UND">UND</option>
+                        <option value="Metros">Metros</option>
+                        <option value="Horas">Horas</option>
+                        <option value="Servicios">Servicios</option>
+                        <option value="Lote">Lote</option>
+                        <option value="KG">KG</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block font-bold text-slate-700 mb-1">Precio Ref. ($)</label>
+                    <input type="number" id="edit_item_precio" step="0.01" min="0" required class="w-full px-3 py-2 bg-slate-50 border rounded-xl font-mono text-right">
+                </div>
+            </div>
+            <button type="submit" class="w-full py-2.5 bg-brand-600 hover:bg-brand-700 text-white font-bold rounded-xl shadow-md">Guardar Cambios</button>
+        </form>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    // =========================================================================
+    // CONTROL DEL CANVAS / OFFCANVAS
+    // =========================================================================
+    function openOffcanvas() {
+        const overlay = document.getElementById('offcanvasOverlay');
+        const panel = document.getElementById('offcanvasPanel');
+        overlay.classList.remove('hidden');
+        setTimeout(() => overlay.classList.add('opacity-100'), 10);
+        panel.classList.remove('translate-x-full');
+        actualizarFichaProveedorCanvas();
+        recalcularTotalesCanvas();
+    }
+
+    function closeOffcanvas() {
+        const overlay = document.getElementById('offcanvasOverlay');
+        const panel = document.getElementById('offcanvasPanel');
+        overlay.classList.remove('opacity-100');
+        panel.classList.add('translate-x-full');
+        setTimeout(() => overlay.classList.add('hidden'), 300);
+    }
+
+    // Si viene con ?open_canvas=1 en la URL, abrir de inmediato
+    document.addEventListener('DOMContentLoaded', () => {
+        const today = new Date().toISOString().split('T')[0];
+        const fechaEmisionInput = document.getElementById('canvas_fecha_emision');
+        const fechaTasaInput = document.getElementById('canvas_fecha_tasa');
+        if (fechaEmisionInput) fechaEmisionInput.value = today;
+        if (fechaTasaInput) fechaTasaInput.value = today;
+
+        actualizarFichaProveedorCanvas();
+        recalcularTotalesCanvas();
+
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('open_canvas') === '1') {
+            openOffcanvas();
+        }
+    });
+
+    // =========================================================================
+    // FICHA DEL PROVEEDOR EN VIVO
+    // =========================================================================
+    function actualizarFichaProveedorCanvas() {
+        const sel = document.getElementById('canvas_proveedor_id');
+        if (!sel || !sel.options[sel.selectedIndex]) return;
+        const opt = sel.options[sel.selectedIndex];
+
+        document.getElementById('canvasFichaRif').innerText = opt.dataset.rif || '-';
+        document.getElementById('canvasFichaBeneficiario').innerText = opt.dataset.beneficiario || opt.innerText;
+        document.getElementById('canvasFichaBanco').innerText = opt.dataset.banco || '-';
+        document.getElementById('canvasFichaCuenta').innerText = opt.dataset.cuenta || '-';
+    }
+
+    // =========================================================================
+    // TASA BCV DINÁMICA (USD, EUR, PROMEDIO) + FECHAS HISTÓRICAS
+    // =========================================================================
+    let canvasTipoTasaActual = 'USD';
+
+    function cambiarTipoTasaCanvas(tipo) {
+        canvasTipoTasaActual = tipo;
+        document.getElementById('canvas_tipo_tasa').value = tipo;
+
+        const btnUsd = document.getElementById('canvas_btn_tasa_usd');
+        const btnEur = document.getElementById('canvas_btn_tasa_eur');
+        const btnProm = document.getElementById('canvas_btn_tasa_prom');
+
+        const activeClass = 'bg-brand-50 border-brand-600 text-brand-900 shadow-sm';
+        const inactiveClass = 'bg-white border-slate-200 text-slate-600 hover:border-slate-300';
+
+        btnUsd.className = `py-3 px-3 rounded-2xl border-2 font-black text-xs flex flex-col items-center justify-center transition-all ${tipo === 'USD' ? activeClass : inactiveClass}`;
+        btnEur.className = `py-3 px-3 rounded-2xl border-2 font-black text-xs flex flex-col items-center justify-center transition-all ${tipo === 'EUR' ? activeClass : inactiveClass}`;
+        btnProm.className = `py-3 px-3 rounded-2xl border-2 font-black text-xs flex flex-col items-center justify-center transition-all ${tipo === 'PROMEDIO' ? activeClass : inactiveClass}`;
+
+        consultarTasaBcvCanvas();
+    }
+
+    function setFechaTasaCanvas(opcion) {
+        const d = new Date();
+        if (opcion === 'ayer') {
+            d.setDate(d.getDate() - 1);
+        } else if (opcion === 'hace5dias') {
+            d.setDate(d.getDate() - 5);
+        }
+        document.getElementById('canvas_fecha_tasa').value = d.toISOString().split('T')[0];
+        consultarTasaBcvCanvas();
+    }
+
+    async function consultarTasaBcvCanvas() {
+        const fecha = document.getElementById('canvas_fecha_tasa').value;
+        const badge = document.getElementById('canvasBcvBadgeStatus');
+        badge.innerHTML = '<i class="bi bi-arrow-repeat animate-spin mr-1"></i>Consultando BCV...';
+
+        Swal.fire({
+            title: 'Consultando tasa oficial...',
+            text: 'Conectando con el Banco Central de Venezuela',
+            allowOutsideClick: false,
+            didOpen: () => {
+                Swal.showLoading();
+            }
+        });
+
+        try {
+            const res = await fetch(`/api/bcv?fecha=${fecha}&moneda=${canvasTipoTasaActual}`);
+            const data = await res.json();
+            
+            Swal.close();
+            
+            if (data.tasa) {
+                document.getElementById('canvas_tasa_bcv').value = data.tasa;
+                badge.innerHTML = `<i class="bi bi-check-circle-fill mr-1 text-brand-600"></i>${data.moneda} ${data.fecha}`;
+                recalcularTotalesCanvas();
+            } else {
+                badge.innerHTML = `<i class="bi bi-exclamation-triangle-fill mr-1 text-amber-500"></i>Tasa manual`;
+            }
+        } catch (e) {
+            Swal.close();
+            badge.innerHTML = `<i class="bi bi-exclamation-triangle-fill mr-1 text-amber-500"></i>Error BCV`;
+            Swal.fire({icon: 'error', title: 'Error', text: 'No se pudo conectar con el BCV. Por favor ingresa la tasa manualmente.'});
+        }
+    }
+
+    // =========================================================================
+    // GESTIÓN DINÁMICA DE ÍTEMS EN LA TABLA
+    // =========================================================================
+    function agregarFilaCanvas(desc = '', cant = 1, unid = 'UND', pu = 0.00) {
+        const tbody = document.getElementById('canvasItemsBody');
+        const rowCount = tbody.querySelectorAll('.item-row').length + 1;
+
+        const tr = document.createElement('tr');
+        tr.className = 'item-row hover:bg-slate-50/80 transition-colors';
+        tr.innerHTML = `
+            <td class="px-3 py-3 text-center font-bold text-slate-400 row-num">${rowCount}</td>
+            <td class="px-3 py-3">
+                <input type="text" name="descripcion[]" readonly required value="${desc}" placeholder="Selecciona desde el Catálogo 👆"
+                       class="w-full px-3 py-2 bg-slate-100 border border-slate-200 rounded-xl text-xs font-semibold text-slate-500 outline-none cursor-not-allowed">
+            </td>
+            <td class="px-3 py-3">
+                <input type="number" step="1" min="1" name="cantidad[]" value="${cant}" required oninput="recalcularTotalesCanvas()"
+                       class="w-full px-2 py-2 text-center bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:bg-white focus:ring-1 focus:ring-blue-500">
+            </td>
+            <td class="px-3 py-3">
+                <input type="text" name="unidad[]" readonly value="${unid}" placeholder="---"
+                       class="w-full px-2 py-2 text-center bg-slate-100 border border-slate-200 rounded-xl text-xs font-bold text-slate-500 outline-none cursor-not-allowed">
+            </td>
+            <td class="px-3 py-3">
+                <input type="number" step="0.01" min="0" name="precio_unitario_usd[]" value="${parseFloat(pu).toFixed(2)}" required oninput="recalcularTotalesCanvas()"
+                       class="w-full px-2 py-2 text-right bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:bg-white focus:ring-1 focus:ring-brand-500">
+            </td>
+            <td class="px-3 py-3 text-right font-black text-emerald-700 text-sm line-total">
+                $${(cant * pu).toFixed(2)}
+            </td>
+            <td class="px-2 py-3 text-center">
+                <button type="button" onclick="eliminarFilaCanvas(this)" class="text-slate-300 hover:text-rose-600 transition-colors">
+                    <i class="bi bi-trash3 text-sm"></i>
+                </button>
+            </td>
+        `;
+        tbody.appendChild(tr);
+        reordenarFilasCanvas();
+        recalcularTotalesCanvas();
+    }
+
+    function eliminarFilaCanvas(btn) {
+        const tbody = document.getElementById('canvasItemsBody');
+        const rows = tbody.querySelectorAll('.item-row');
+        if (rows.length <= 1) {
+            Swal.fire({icon: 'error', title: 'Oops...', text: 'La orden de compra debe tener al menos un renglón.'});
+            return;
+        }
+        btn.closest('tr').remove();
+        reordenarFilasCanvas();
+        recalcularTotalesCanvas();
+    }
+
+    function reordenarFilasCanvas() {
+        const rows = document.querySelectorAll('#canvasItemsBody .item-row');
+        rows.forEach((row, i) => {
+            row.querySelector('.row-num').innerText = i + 1;
+        });
+    }
+
+    function cargarDesdeCatalogoCanvas(select) {
+        if (!select.value) return;
+        const opt = select.options[select.selectedIndex];
+        agregarFilaCanvas(opt.dataset.desc, 1, opt.dataset.unid || 'UND', opt.dataset.precio || 0);
+        select.value = '';
+    }
+
+    // =========================================================================
+    // CÁLCULOS BIMONETARIOS EN VIVO
+    // =========================================================================
+    function recalcularTotalesCanvas() {
+        const rows = document.querySelectorAll('#canvasItemsBody .item-row');
+        let subtotalUsd = 0;
+
+        rows.forEach(row => {
+            const cant = parseFloat(row.querySelector('input[name="cantidad[]"]').value) || 0;
+            const pu = parseFloat(row.querySelector('input[name="precio_unitario_usd[]"]').value) || 0;
+            const tot = cant * pu;
+            row.querySelector('.line-total').innerText = `$${tot.toLocaleString('es-VE', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+            subtotalUsd += tot;
+        });
+
+        const aplicaIva = document.getElementById('canvas_aplica_iva').checked;
+        const tasaBcv = parseFloat(document.getElementById('canvas_tasa_bcv').value) || 804.8109;
+
+        const ivaUsd = aplicaIva ? (subtotalUsd * 0.16) : 0;
+        const totalUsd = subtotalUsd + ivaUsd;
+
+        const subtotalBs = subtotalUsd * tasaBcv;
+        const totalBs = totalUsd * tasaBcv;
+
+        // Actualizar displays
+        document.getElementById('canvasDispSubtotalUsd').innerText = `$${subtotalUsd.toLocaleString('es-VE', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+        document.getElementById('canvasDispIvaUsd').innerText = `$${ivaUsd.toLocaleString('es-VE', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+        document.getElementById('canvasDispTotalUsd').innerText = `$${totalUsd.toLocaleString('es-VE', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+
+        document.getElementById('canvasDispTcBar').innerText = `${tasaBcv.toLocaleString('es-VE', {minimumFractionDigits: 4, maximumFractionDigits: 4})} Bs`;
+        document.getElementById('canvasDispSubtotalBs').innerText = `Bs. ${subtotalBs.toLocaleString('es-VE', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+        document.getElementById('canvasDispTotalBs').innerText = `Bs. ${totalBs.toLocaleString('es-VE', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+    }
+
+    // =========================================================================
+    // EMISIÓN AJAX CON MODAL DE ÉXITO Y PREVENCIÓN DE DUPLICADOS
+    // =========================================================================
+    async function emitirOrdenCanvas(e) {
+        e.preventDefault();
+        const form = document.getElementById('formNuevaOrdenCanvas');
+        const btn = document.getElementById('btnSubmitCanvas');
+
+        // Deshabilitar botón para evitar dobles clics
+        btn.disabled = true;
+        btn.innerHTML = '<i class="bi bi-arrow-repeat animate-spin mr-2 text-lg"></i>Generando Documento Seguro...';
+
+        const formData = new FormData(form);
+
+        try {
+            const res = await fetch('/orden/nueva', {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'Accept': 'application/json'
+                }
+            });
+
+            const data = await res.json();
+
+            if (res.ok && data.success) {
+                // Éxito: abrir Swal con PDF
+                Swal.fire({
+                    title: '¡Orden Generada Exitosamente!',
+                    html: `La orden Nro <b>${data.nro_orden}</b> fue generada por un monto de <b>$${data.total_usd}</b>.<br><br>
+                           <a href="${data.pdf_url}" target="_blank" style="display:inline-block; padding:10px 20px; background-color:#0d9488; color:white; border-radius:8px; font-weight:bold; text-decoration:none; margin-top:10px;">
+                               <i class="bi bi-file-pdf"></i> Ver / Descargar PDF
+                           </a>`,
+                    icon: 'success',
+                    confirmButtonText: 'Cerrar',
+                    confirmButtonColor: '#475569'
+                }).then(() => {
+                    window.location.reload();
+                });
+            } else {
+                Swal.fire({icon: 'error', title: 'Error', text: data.error || 'Error al procesar la orden de compra.'});
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-file-earmark-check-fill mr-2 text-lg"></i>Emitir Orden de Compra Oficial';
+            }
+        } catch (err) {
+            Swal.fire({icon: 'error', title: 'Error', text: 'Error de conexión con el servidor.'});
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-file-earmark-check-fill mr-2 text-lg"></i>Emitir Orden de Compra Oficial';
+        }
+    }
+
+    function cerrarModalExitoYRecargar() {
+        document.getElementById('modalExitoEmision').classList.add('hidden');
+        window.location.reload();
+    }
+
+    // =========================================================================
+    // MODALES RÁPIDOS PARA NUEVO PROYECTO, PROVEEDOR, FIRMANTE E ÍTEM
+    // =========================================================================
+    function abrirModalNuevoProyecto() {
+        document.getElementById('modalNuevoProyecto').classList.remove('hidden');
+    }
+
+    function abrirModalNuevoProveedor() {
+        document.getElementById('modalNuevoProveedor').classList.remove('hidden');
+    }
+    
+    let tipoFirmanteDestino = 'solicitado';
+    function abrirModalNuevoFirmante(tipo = 'solicitado') {
+        tipoFirmanteDestino = tipo;
+        document.getElementById('modalNuevoFirmante').classList.remove('hidden');
+    }
+    
+    // Función especial para items, se llama desde el JS del dropdown o desde un botón.
+    // Como el dropdown ya tiene una opción para agregar de catálogo, añadiremos una para "Nuevo"
+    function abrirModalNuevoItem() {
+        document.getElementById('modalNuevoItem').classList.remove('hidden');
+    }
+
+    async function guardarNuevoProyectoRapido(e) {
+        e.preventDefault();
+        const nombre = document.getElementById('modal_proy_nombre').value;
+
+        const res = await fetch('/api/proyectos/nuevo', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({nombre: nombre})
+        });
+        const data = await res.json();
+        if (data.success) {
+            const sel = document.getElementById('canvas_proyecto_id');
+            const opt = new Option(`${data.codigo} — ${data.nombre}`, data.id, true, true);
+            sel.add(opt);
+            document.getElementById('modalNuevoProyecto').classList.add('hidden');
+        } else {
+            Swal.fire({icon: 'error', title: 'Error', text: data.error || 'Error guardando proyecto'});
+        }
+    }
+
+    function abrirModalNuevoProveedor() {
+        document.getElementById('modalNuevoProveedor').classList.remove('hidden');
+    }
+
+    async function guardarNuevoProveedorRapido(e) {
+        e.preventDefault();
+        const razon_social = document.getElementById('modal_prov_razon').value;
+        const prefijo = document.getElementById('modal_prov_rif_prefijo').value;
+        const numero = document.getElementById('modal_prov_rif_numero').value;
+        const rif = `${prefijo}-${numero}`;
+        const banco = document.getElementById('modal_prov_banco').value;
+        const num_cuenta = document.getElementById('modal_prov_cuenta').value;
+
+        const codigosBancos = {
+            "Banesco": "0134", "Mercantil": "0105", "Provincial": "0108", "Banco de Venezuela": "0102",
+            "Bancaribe": "0114", "Banco Exterior": "0115", "Banco Nacional de Crédito (BNC)": "0191",
+            "Banco Plaza": "0138", "Banplus": "0174", "Bancamiga": "0172", "Banco Bicentenario": "0175",
+            "Banco del Tesoro": "0163", "Banco Activo": "0171", "100% Banco": "0156",
+            "Banco Sofitasa": "0137", "Banco Caroní": "0128"
+        };
+        
+        if (codigosBancos[banco] && !num_cuenta.startsWith(codigosBancos[banco])) {
+            Swal.fire({icon: 'error', title: 'Error', text: `El número de cuenta ingresado no coincide con ${banco}. Debe comenzar por ${codigosBancos[banco]}.`});
+            return;
+        }
+
+        const res = await fetch('/api/proveedores/nuevo', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({razon_social, rif, banco, num_cuenta, beneficiario: razon_social})
+        });
+        const data = await res.json();
+        if (data.success) {
+            const prov = data.proveedor;
+            const sel = document.getElementById('canvas_proveedor_id');
+            const opt = new Option(`${prov.razon_social} (${prov.rif})`, prov.id, true, true);
+            opt.dataset.rif = prov.rif;
+            opt.dataset.beneficiario = prov.razon_social;
+            opt.dataset.banco = prov.banco;
+            opt.dataset.cuenta = prov.num_cuenta;
+            sel.add(opt);
+            actualizarFichaProveedorCanvas();
+            document.getElementById('modalNuevoProveedor').classList.add('hidden');
+        } else {
+            Swal.fire({icon: 'error', title: 'Error', text: data.error || 'Error guardando proveedor'});
+        }
+    }
+
+    async function guardarNuevoFirmanteRapido(e) {
+        e.preventDefault();
+        const btn = e.target.querySelector('button[type="submit"]');
+        btn.disabled = true;
+        btn.innerText = 'Guardando...';
+
+        const payload = {
+            nombre: document.getElementById('modal_firm_nombre').value,
+            cargo: document.getElementById('modal_firm_cargo').value,
+            departamento: "Administración" // por defecto
+        };
+
+        try {
+            const res = await fetch('/api/firmantes/nuevo', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(payload)
+            });
+            const data = await res.json();
+            
+            if(res.ok && data.success) {
+                const selectTarget = document.querySelector(`select[name="firmante_${tipoFirmanteDestino}"]`);
+                const opt = document.createElement('option');
+                opt.value = data.firmante.nombre;
+                opt.text = `${data.firmante.nombre} (${data.firmante.cargo})`;
+                selectTarget.add(opt);
+                selectTarget.value = data.firmante.nombre;
+                
+                document.getElementById('modalNuevoFirmante').classList.add('hidden');
+                e.target.reset();
+            } else {
+                Swal.fire({icon: 'error', title: 'Error', text: data.error || 'Error al guardar el firmante.'});
+            }
+        } catch(err) {
+            Swal.fire({icon: 'error', title: 'Error', text: 'Error de conexión.'});
+        } finally {
+            btn.disabled = false;
+            btn.innerText = 'Guardar y Seleccionar';
+        }
+    }
+
+    async function guardarNuevoItemRapido(e) {
+        e.preventDefault();
+        const btn = e.target.querySelector('button[type="submit"]');
+        btn.disabled = true;
+        btn.innerText = 'Guardando...';
+
+        const payload = {
+            descripcion: document.getElementById('modal_item_desc').value,
+            unidad: document.getElementById('modal_item_unid').value,
+            precio_referencial_usd: parseFloat(document.getElementById('modal_item_precio').value)
+        };
+
+        try {
+            const res = await fetch('/api/items/nuevo', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(payload)
+            });
+            const data = await res.json();
+            
+            if(res.ok && data.success) {
+                // Añadir al dropdown del catálogo
+                const selectCat = document.getElementById('canvasSelectCatalogo');
+                const opt = document.createElement('option');
+                opt.value = data.item.id;
+                opt.dataset.desc = data.item.descripcion;
+                opt.dataset.unid = data.item.unidad;
+                opt.dataset.precio = data.item.precio_referencial_usd;
+                opt.text = `${data.item.codigo || 'NVO'} — ${data.item.descripcion} ($${parseFloat(data.item.precio_referencial_usd).toFixed(2)})`;
+                selectCat.add(opt);
+                
+                // Además, agregar la fila directamente en el canvas
+                const tbody = document.getElementById('canvasItemsBody');
+                let lastRow = tbody.querySelector('tr:last-child');
+                
+                if (!lastRow) {
+                    agregarFilaCanvas(data.item.descripcion, 1, data.item.unidad, data.item.precio_referencial_usd);
+                } else {
+                    const descInput = lastRow.querySelector('input[name="descripcion[]"]');
+                    if (descInput && descInput.value.trim() !== '') {
+                        agregarFilaCanvas(data.item.descripcion, 1, data.item.unidad, data.item.precio_referencial_usd);
+                    } else {
+                        lastRow.querySelector('input[name="descripcion[]"]').value = data.item.descripcion;
+                        lastRow.querySelector('input[name="unidad[]"]').value = data.item.unidad;
+                        lastRow.querySelector('input[name="precio_unitario_usd[]"]').value = data.item.precio_referencial_usd;
+                        lastRow.querySelector('input[name="cantidad[]"]').value = 1;
+                    }
+                }
+                
+                
+                recalcularTotalesCanvas();
+                
+                document.getElementById('modalNuevoItem').classList.add('hidden');
+                e.target.reset();
+                
+                // Mostrar notificación bonita de éxito
+                Swal.fire({
+                    icon: 'success',
+                    title: '¡Catálogo Actualizado!',
+                    text: 'El ítem fue agregado al catálogo y a tu orden exitosamente.',
+                    timer: 2000,
+                    showConfirmButton: false
+                });
+            } else {
+                Swal.fire({icon: 'error', title: 'Error', text: data.error || 'Error al guardar el ítem.'});
+            }
+        } catch(err) {
+            Swal.fire({icon: 'error', title: 'Error', text: 'Error de conexión.'});
+        } finally {
+            btn.disabled = false;
+            btn.innerText = 'Guardar y Añadir a la Orden';
+        }
+    }
+
+    function abrirModalEditarProveedor() {
+        const select = document.getElementById('canvas_proveedor_id');
+        if (!select.value) {
+            Swal.fire({icon: 'warning', title: 'Atención', text: 'Selecciona un proveedor primero.'});
+            return;
+        }
+        const option = select.options[select.selectedIndex];
+        
+        document.getElementById('edit_prov_id').value = select.value;
+        document.getElementById('edit_prov_razon').value = option.text.split(' (')[0]; // Simple split para sacar nombre
+        document.getElementById('edit_prov_rif').value = option.dataset.rif;
+        document.getElementById('edit_prov_banco').value = option.dataset.banco;
+        document.getElementById('edit_prov_cuenta').value = option.dataset.cuenta;
+
+        document.getElementById('modalEditarProveedor').classList.remove('hidden');
+    }
+
+    async function guardarEdicionProveedor(e) {
+        e.preventDefault();
+        const btn = e.target.querySelector('button[type="submit"]');
+        btn.disabled = true;
+        btn.innerText = 'Guardando...';
+
+        const provId = document.getElementById('edit_prov_id').value;
+        const payload = {
+            razon_social: document.getElementById('edit_prov_razon').value,
+            beneficiario: document.getElementById('edit_prov_razon').value,
+            banco: document.getElementById('edit_prov_banco').value,
+            num_cuenta: document.getElementById('edit_prov_cuenta').value
+        };
+
+        try {
+            const res = await fetch(`/api/proveedores/${provId}`, {
+                method: 'PUT',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(payload)
+            });
+            const data = await res.json();
+            
+            if(res.ok && data.success) {
+                const select = document.getElementById('canvas_proveedor_id');
+                const option = select.options[select.selectedIndex];
+                
+                option.text = `${data.proveedor.razon_social} (${data.proveedor.rif})`;
+                option.dataset.beneficiario = data.proveedor.beneficiario || data.proveedor.razon_social;
+                option.dataset.banco = data.proveedor.banco;
+                option.dataset.cuenta = data.proveedor.num_cuenta;
+                
+                actualizarFichaProveedorCanvas();
+                
+                document.getElementById('modalEditarProveedor').classList.add('hidden');
+                Swal.fire({icon: 'success', title: 'Actualizado', text: 'Proveedor editado exitosamente.', timer: 2000, showConfirmButton: false});
+            } else {
+                Swal.fire({icon: 'error', title: 'Error', text: data.error || 'Error al editar el proveedor.'});
+            }
+        } catch(err) {
+            Swal.fire({icon: 'error', title: 'Error', text: 'Error de conexión.'});
+        } finally {
+            btn.disabled = false;
+            btn.innerText = 'Guardar Cambios';
+        }
+    }
+
+    function abrirModalEditarItem() {
+        const select = document.getElementById('canvasSelectCatalogo');
+        if (!select.value) {
+            Swal.fire({icon: 'warning', title: 'Atención', text: 'Selecciona un ítem del catálogo primero.'});
+            return;
+        }
+        const option = select.options[select.selectedIndex];
+        
+        document.getElementById('edit_item_id').value = select.value;
+        document.getElementById('edit_item_desc').value = option.dataset.desc;
+        document.getElementById('edit_item_unid').value = option.dataset.unid;
+        document.getElementById('edit_item_precio').value = parseFloat(option.dataset.precio || 0).toFixed(2);
+
+        document.getElementById('modalEditarItem').classList.remove('hidden');
+    }
+
+    async function guardarEdicionItem(e) {
+        e.preventDefault();
+        const btn = e.target.querySelector('button[type="submit"]');
+        btn.disabled = true;
+        btn.innerText = 'Guardando...';
+
+        const itemId = document.getElementById('edit_item_id').value;
+        const payload = {
+            descripcion: document.getElementById('edit_item_desc').value,
+            unidad: document.getElementById('edit_item_unid').value,
+            precio_referencial_usd: parseFloat(document.getElementById('edit_item_precio').value)
+        };
+
+        try {
+            const res = await fetch(`/api/items/${itemId}`, {
+                method: 'PUT',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(payload)
+            });
+            const data = await res.json();
+            
+            if(res.ok && data.success) {
+                const select = document.getElementById('canvasSelectCatalogo');
+                const option = select.options[select.selectedIndex];
+                
+                option.dataset.desc = data.item.descripcion;
+                option.dataset.unid = data.item.unidad;
+                option.dataset.precio = data.item.precio_referencial_usd;
+                option.text = `${data.item.codigo || 'NVO'} — ${data.item.descripcion} ($${parseFloat(data.item.precio_referencial_usd).toFixed(2)})`;
+                
+                document.getElementById('modalEditarItem').classList.add('hidden');
+                Swal.fire({icon: 'success', title: 'Actualizado', text: 'Ítem de catálogo editado exitosamente.', timer: 2000, showConfirmButton: false});
+            } else {
+                Swal.fire({icon: 'error', title: 'Error', text: data.error || 'Error al editar el ítem.'});
+            }
+        } catch(err) {
+            Swal.fire({icon: 'error', title: 'Error', text: 'Error de conexión.'});
+        } finally {
+            btn.disabled = false;
+            btn.innerText = 'Guardar Cambios';
+        }
+    }
+
+    function agregarUnidad(btn, selectId) {
+        Swal.fire({
+            title: 'Nueva Unidad',
+            input: 'text',
+            inputLabel: 'Ingrese el nombre de la nueva unidad de medida',
+            inputPlaceholder: 'Ej. Litros',
+            showCancelButton: true,
+            confirmButtonText: 'Agregar',
+            cancelButtonText: 'Cancelar'
+        }).then((result) => {
+            if (result.isConfirmed && result.value.trim() !== '') {
+                const newValue = result.value.trim().toUpperCase();
+                const sel = document.getElementById(selectId);
+                const opt = new Option(newValue, newValue, true, true);
+                sel.add(opt);
+                // Si existe el otro modal, agregarlo ahí también
+                const otherId = selectId === 'modal_item_unid' ? 'edit_item_unid' : 'modal_item_unid';
+                const otherSel = document.getElementById(otherId);
+                if(otherSel) {
+                    otherSel.add(new Option(newValue, newValue));
+                }
+            }
+        });
+    }
+</script>
+{% endblock %}

@@ -1,0 +1,66 @@
+Instrucciones de Despliegue de Nexa (con Firebase)
+====================================================
+
+PREPARACIÓN LOCAL
+-----------------
+1. Asegúrate de tener Python 3.10 o superior instalado.
+2. Abre una terminal y dirígete a la carpeta del proyecto.
+3. Crea tu entorno virtual y actívalo:
+   - Windows: 
+     python -m venv venv
+     venv\Scripts\activate
+   - Linux/Mac:
+     python3 -m venv venv
+     source venv/bin/activate
+4. Instala las dependencias necesarias:
+   pip install -r requirements.txt
+
+CONFIGURACIÓN DE FIREBASE
+-------------------------
+Dado que el proyecto fue originalmente diseñado para Supabase, para integrar Firebase necesitas realizar los siguientes pasos de adaptación:
+
+1. Ve a la consola de Firebase (console.firebase.google.com) y crea un proyecto.
+2. Habilita "Firestore Database" en modo producción o prueba.
+3. Habilita "Authentication" (Email/Password).
+4. Ve a "Configuración del Proyecto" -> "Cuentas de Servicio" y genera una nueva clave privada. Descárgala (será un archivo JSON).
+5. Coloca ese archivo JSON en la raíz de tu proyecto y llámalo "firebase-adminsdk.json".
+6. Actualiza tu archivo `.env` para que apunte a las credenciales:
+   FLASK_APP=app.py
+   FLASK_ENV=production
+   SECRET_KEY=tu_clave_secreta_super_segura
+   FIREBASE_CREDENTIALS=firebase-adminsdk.json
+
+7. ADAPTACIÓN DEL CÓDIGO (BACKEND):
+   Actualmente el archivo `routes.py` y `app.py` utilizan el SDK de Supabase (`supabase-py`).
+   Para que Nexa funcione 100% con Firebase, el desarrollador backend debe sustituir las llamadas como:
+   `supabase.table("ordenes_compra").select("*").execute()`
+   por las llamadas de Firestore de Firebase Admin SDK:
+   `db.collection("ordenes_compra").get()`
+   
+   Esto es un paso técnico crucial para completar la migración de base de datos.
+
+EJECUCIÓN DEL FRONTEND Y BACKEND
+--------------------------------
+1. Entorno Local/Pruebas:
+   Para ejecutarlo en tu máquina:
+   flask run --host=0.0.0.0 --port=5000
+
+2. Producción:
+   Nunca uses `flask run` en producción.
+   En Windows usa Waitress:
+   pip install waitress
+   waitress-serve --port=5000 app:app
+   
+   En Linux usa Gunicorn:
+   pip install gunicorn
+   gunicorn -w 4 -b 0.0.0.0:5000 app:app
+
+HOSTING RECOMENDADO
+-------------------
+Para desplegar este sistema Flask en internet, puedes utilizar servicios como:
+- Render.com (Recomendado, muy amigable para Flask y gratuito para pruebas).
+- Railway.app (Despliegue directo desde Github).
+- Google Cloud Run (Si deseas mantener todo dentro del ecosistema de Google / Firebase).
+
+Verificación final:
+Abre el navegador en http://localhost:5000, ingresa con "admin@nexa.com" y la clave "admin123", y verifica que el formulario abra correctamente el panel lateral y el color verde militar de las tarjetas coincida con el tema corporativo.

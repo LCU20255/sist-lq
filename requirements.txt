@@ -1,0 +1,30 @@
+# =============================================================================
+# DEPENDENCIAS DEL SISTEMA SIST-LQ (PRODUCCIÓN Y DESARROLLO)
+# =============================================================================
+
+# Framework Web y Componentes Base
+Flask>=3.0.0
+Werkzeug>=3.0.0
+Jinja2>=3.1.0
+
+# Base de Datos & Backend Supabase
+supabase>=2.3.0
+postgrest>=0.16.0
+gotrue>=2.8.0
+
+# Generación de Formatos PDF Oficiales (WeasyPrint)
+weasyprint>=61.0
+Pillow>=10.0.0
+
+# Cliente HTTP para API BCV (Cotizaciones ve.dolarapi.com)
+requests>=2.31.0
+
+# Gestión de Variables de Entorno Dinámicas
+python-dotenv>=1.0.0
+
+# Servidores WSGI de Producción
+# Gunicorn para servidores Linux / Cloud (Docker, Render, Heroku, AWS, Railway)
+gunicorn>=21.2.0
+
+# Waitress para servidores Windows / On-Premise
+waitress>=3.0.0

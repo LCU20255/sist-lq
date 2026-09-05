@@ -1,0 +1,704 @@
+<!-- =========================================================================
+     VENTANAS EMERGENTES (MODALES) PARA "GESTIÓN Y OPERACIONES"
+     ========================================================================= -->
+
+<!-- 1. VENTANA EMERGENTE: ÓRDENES EMITIDAS -->
+<div id="modalEmergenteOrdenes" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4 transition-all duration-300">
+    <div class="bg-white rounded-3xl max-w-5xl w-full max-h-[90vh] shadow-2xl flex flex-col border border-slate-200 overflow-hidden">
+        <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-2xl bg-brand-50 text-brand-700 flex items-center justify-center text-xl shadow-sm">
+                    <i class="bi bi-journal-check"></i>
+                </div>
+                <div>
+                    <h3 class="text-base font-black text-slate-900">Órdenes de Compra Emitidas</h3>
+                    <p class="text-xs text-slate-400 font-medium">Historial completo con acceso directo al PDF oficial</p>
+                </div>
+            </div>
+            <div class="flex items-center space-x-3">
+                <input type="text" id="busquedaModalOrdenes" oninput="filtrarModalOrdenes()" placeholder="Buscar orden, proveedor..."
+                       class="px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs outline-none focus:ring-1 focus:ring-brand-500 w-48 md:w-64">
+                <button onclick="exportarOrdenesCSV()" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-sm transition-colors flex items-center">
+                    <i class="bi bi-file-earmark-excel-fill mr-1.5"></i>Exportar
+                </button>
+                <button onclick="cerrarVentanaEmergente('modalEmergenteOrdenes')" class="w-8 h-8 rounded-xl bg-white hover:bg-rose-50 hover:text-rose-600 flex items-center justify-center text-slate-400 transition-colors">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+            </div>
+        </div>
+
+        <div class="flex-1 overflow-y-auto p-6">
+            <table class="w-full text-left text-xs" id="tablaModalOrdenes">
+                <thead class="bg-slate-100 text-slate-600 uppercase font-bold text-[10px] sticky top-0 border-b">
+                    <tr>
+                        <th class="px-4 py-3">Nro. Orden</th>
+                        <th class="px-4 py-3">Fecha</th>
+                        <th class="px-4 py-3">Proveedor</th>
+                        <th class="px-4 py-3">Proyecto</th>
+                        <th class="px-4 py-3 text-right">Tasa Oficial</th>
+                        <th class="px-4 py-3 text-right">Total USD</th>
+                        <th class="px-4 py-3 text-right">Total Bs</th>
+                        <th class="px-4 py-3 text-center">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody id="bodyModalOrdenes" class="divide-y divide-slate-100">
+                    <tr><td colspan="8" class="text-center py-8 text-slate-400">Cargando órdenes...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- 2. VENTANA EMERGENTE: AUDITORÍA DE MOVIMIENTOS -->
+<div id="modalEmergenteAuditoria" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4 transition-all duration-300">
+    <div class="bg-white rounded-3xl max-w-4xl w-full max-h-[85vh] shadow-2xl flex flex-col border border-slate-200 overflow-hidden">
+        <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-2xl bg-indigo-50 text-indigo-700 flex items-center justify-center text-xl shadow-sm">
+                    <i class="bi bi-shield-check"></i>
+                </div>
+                <div>
+                    <h3 class="text-base font-black text-slate-900">Historial de Auditoría & Trazabilidad</h3>
+                    <p class="text-xs text-slate-400 font-medium">Registro cronológico inmutable de acciones realizadas en el sistema</p>
+                </div>
+            </div>
+            <button onclick="cerrarVentanaEmergente('modalEmergenteAuditoria')" class="w-8 h-8 rounded-xl bg-white hover:bg-rose-50 hover:text-rose-600 flex items-center justify-center text-slate-400 transition-colors">
+                <i class="bi bi-x-lg"></i>
+            </button>
+        </div>
+
+        <div class="flex-1 overflow-y-auto p-6">
+            <table class="w-full text-left text-xs">
+                <thead class="bg-slate-100 text-slate-600 uppercase font-bold text-[10px] sticky top-0 border-b">
+                    <tr>
+                        <th class="px-4 py-3 w-40">Fecha y Hora</th>
+                        <th class="px-4 py-3 w-44">Usuario</th>
+                        <th class="px-4 py-3 w-32">Acción</th>
+                        <th class="px-4 py-3 w-28">Módulo</th>
+                        <th class="px-4 py-3">Descripción</th>
+                    </tr>
+                </thead>
+                <tbody id="bodyModalAuditoria" class="divide-y divide-slate-100">
+                    <tr><td colspan="5" class="text-center py-8 text-slate-400">Cargando movimientos...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- 3. VENTANA EMERGENTE: GESTIÓN DE PROVEEDORES -->
+<div id="modalEmergenteProveedores" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4 transition-all duration-300">
+    <div class="bg-white rounded-3xl max-w-4xl w-full max-h-[90vh] shadow-2xl flex flex-col border border-slate-200 overflow-hidden">
+        <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-2xl bg-teal-50 text-teal-700 flex items-center justify-center text-xl shadow-sm">
+                    <i class="bi bi-buildings-fill"></i>
+                </div>
+                <div>
+                    <h3 class="text-base font-black text-slate-900">Directorio de Proveedores</h3>
+                    <p class="text-xs text-slate-400 font-medium">Consulta y registro de proveedores con datos bancarios oficiales</p>
+                </div>
+            </div>
+            <div class="flex items-center space-x-3">
+                <button type="button" onclick="toggleFormNuevoProveedorModal()"
+                        class="px-3.5 py-1.5 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-xs font-bold flex items-center shadow-sm">
+                    <i class="bi bi-plus-lg mr-1.5"></i>Nuevo Proveedor
+                </button>
+                <button onclick="cerrarVentanaEmergente('modalEmergenteProveedores')" class="w-8 h-8 rounded-xl bg-white hover:bg-rose-50 hover:text-rose-600 flex items-center justify-center text-slate-400 transition-colors">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Formulario Plegable para Agregar Proveedor -->
+        <div id="formNuevoProveedorContainer" class="hidden p-5 bg-brand-50/50 border-b border-brand-100 animate-slide-down">
+            <h4 class="text-xs font-black text-brand-900 uppercase tracking-wider mb-3 flex items-center">
+                <i class="bi bi-person-plus-fill mr-1.5"></i>Registrar Nuevo Proveedor
+            </h4>
+            <form onsubmit="guardarProveedorDesdeModal(event)" class="space-y-3 text-xs">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-1">Razón Social <span class="text-rose-500">*</span></label>
+                        <input type="text" id="m_prov_razon" required placeholder="IDEATEX C.A." class="w-full px-3 py-2 bg-white border rounded-xl outline-none">
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-1">RIF <span class="text-rose-500">*</span></label>
+                        <div class="flex">
+                            <select id="m_prov_rif_prefijo" class="px-2 py-2 bg-white border border-r-0 rounded-l-xl font-bold text-slate-700 outline-none">
+                                <option value="J">J</option>
+                                <option value="V">V</option>
+                                <option value="E">E</option>
+                                <option value="G">G</option>
+                                <option value="P">P</option>
+                            </select>
+                            <input type="text" id="m_prov_rif_numero" required pattern="^\d{7,9}-?\d?$" placeholder="307780460" class="w-full px-2 py-2 bg-white border rounded-r-xl font-mono outline-none" title="Ingrese solo los números del RIF (ej. 307780460)">
+                        </div>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-1">Banco <span class="text-rose-500">*</span></label>
+                        <select id="m_prov_banco" required class="w-full px-3 py-2 bg-white border rounded-xl outline-none">
+                            <option value="Banesco">Banesco</option>
+                            <option value="Mercantil">Mercantil</option>
+                            <option value="Provincial">Provincial</option>
+                            <option value="Banco de Venezuela">Banco de Venezuela</option>
+                            <option value="Bancaribe">Bancaribe</option>
+                            <option value="Banco Exterior">Banco Exterior</option>
+                            <option value="Banco Nacional de Crédito (BNC)">BNC</option>
+                            <option value="Banco Plaza">Banco Plaza</option>
+                            <option value="Banplus">Banplus</option>
+                            <option value="Bancamiga">Bancamiga</option>
+                            <option value="Banco Bicentenario">Banco Bicentenario</option>
+                            <option value="Banco del Tesoro">Banco del Tesoro</option>
+                            <option value="Banco Activo">Banco Activo</option>
+                            <option value="100% Banco">100% Banco</option>
+                            <option value="Banco Sofitasa">Banco Sofitasa</option>
+                            <option value="Banco Caroní">Banco Caroní</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-1">Número de Cuenta Bancaria <span class="text-rose-500">*</span></label>
+                        <input type="text" id="m_prov_cuenta" required pattern="^\d{20}$" placeholder="01560030610100004621" class="w-full px-3 py-2 bg-white border rounded-xl font-mono outline-none" title="Debe contener exactamente 20 dígitos numéricos">
+                    </div>
+                </div>
+                <div class="flex justify-end space-x-2 pt-1">
+                    <button type="button" onclick="toggleFormNuevoProveedorModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl">Cancelar</button>
+                    <button type="submit" id="btnGuardarProvModal" class="px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white font-bold rounded-xl shadow-md">Guardar Proveedor</button>
+                </div>
+            </form>
+        </div>
+
+        <div class="flex-1 overflow-y-auto p-6">
+            <table class="w-full text-left text-xs" id="tablaModalProveedores">
+                <thead class="bg-slate-100 text-slate-600 uppercase font-bold text-[10px] sticky top-0 border-b">
+                    <tr>
+                        <th class="px-4 py-3">Razón Social</th>
+                        <th class="px-4 py-3 font-mono">RIF</th>
+                        <th class="px-4 py-3">Banco</th>
+                        <th class="px-4 py-3 font-mono">Nro. de Cuenta</th>
+                    </tr>
+                </thead>
+                <tbody id="bodyModalProveedores" class="divide-y divide-slate-100">
+                    <tr><td colspan="4" class="text-center py-8 text-slate-400">Cargando proveedores...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- 4. VENTANA EMERGENTE: GESTIÓN DE PROYECTOS -->
+<div id="modalEmergenteProyectos" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4 transition-all duration-300">
+    <div class="bg-white rounded-3xl max-w-3xl w-full max-h-[85vh] shadow-2xl flex flex-col border border-slate-200 overflow-hidden">
+        <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-2xl bg-amber-50 text-amber-700 flex items-center justify-center text-xl shadow-sm">
+                    <i class="bi bi-briefcase-fill"></i>
+                </div>
+                <div>
+                    <h3 class="text-base font-black text-slate-900">Gestión de Proyectos</h3>
+                    <p class="text-xs text-slate-400 font-medium">Catálogo de centros de costo y proyectos para órdenes de compra</p>
+                </div>
+            </div>
+            <div class="flex items-center space-x-3">
+                <button type="button" onclick="toggleFormNuevoProyectoModal()"
+                        class="px-3.5 py-1.5 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-xs font-bold flex items-center shadow-sm">
+                    <i class="bi bi-plus-lg mr-1.5"></i>Nuevo Proyecto
+                </button>
+                <button onclick="cerrarVentanaEmergente('modalEmergenteProyectos')" class="w-8 h-8 rounded-xl bg-white hover:bg-rose-50 hover:text-rose-600 flex items-center justify-center text-slate-400 transition-colors">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Formulario Plegable para Agregar Proyecto -->
+        <div id="formNuevoProyectoContainer" class="hidden p-5 bg-brand-50/50 border-b border-brand-100 animate-slide-down">
+            <h4 class="text-xs font-black text-brand-900 uppercase tracking-wider mb-3 flex items-center">
+                <i class="bi bi-folder-plus mr-1.5"></i>Registrar Nuevo Proyecto
+            </h4>
+            <form onsubmit="guardarProyectoDesdeModal(event)" class="space-y-3 text-xs">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-1">Código Único <span class="text-rose-500">*</span></label>
+                        <input type="text" id="m_proy_codigo" required placeholder="PROY-2026-02" class="w-full px-3 py-2 bg-white border rounded-xl font-mono outline-none">
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-1">Nombre del Proyecto <span class="text-rose-500">*</span></label>
+                        <input type="text" id="m_proy_nombre" required placeholder="Modernización de Infraestructura de Redes" class="w-full px-3 py-2 bg-white border rounded-xl outline-none">
+                    </div>
+                </div>
+                <div class="flex justify-end space-x-2 pt-1">
+                    <button type="button" onclick="toggleFormNuevoProyectoModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl">Cancelar</button>
+                    <button type="submit" id="btnGuardarProyModal" class="px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white font-bold rounded-xl shadow-md">Guardar Proyecto</button>
+                </div>
+            </form>
+        </div>
+
+        <div class="flex-1 overflow-y-auto p-6">
+            <table class="w-full text-left text-xs" id="tablaModalProyectos">
+                <thead class="bg-slate-100 text-slate-600 uppercase font-bold text-[10px] sticky top-0 border-b">
+                    <tr>
+                        <th class="px-4 py-3 font-mono w-36">Código</th>
+                        <th class="px-4 py-3">Nombre del Proyecto</th>
+                        <th class="px-4 py-3 text-center w-28">Estado</th>
+                    </tr>
+                </thead>
+                <tbody id="bodyModalProyectos" class="divide-y divide-slate-100">
+                    <tr><td colspan="3" class="text-center py-8 text-slate-400">Cargando proyectos...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- 5. VENTANA EMERGENTE: CATÁLOGO DE ÍTEMS -->
+<div id="modalEmergenteCatalogo" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4 transition-all duration-300">
+    <div class="bg-white rounded-3xl max-w-4xl w-full max-h-[85vh] shadow-2xl flex flex-col border border-slate-200 overflow-hidden">
+        <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-2xl bg-blue-50 text-blue-700 flex items-center justify-center text-xl shadow-sm">
+                    <i class="bi bi-tags-fill"></i>
+                </div>
+                <div>
+                    <h3 class="text-base font-black text-slate-900">Catálogo de Productos y Servicios</h3>
+                    <p class="text-xs text-slate-400 font-medium">Ítems predefinidos para agilizar la emisión de órdenes de compra</p>
+                </div>
+            </div>
+            <div class="flex items-center space-x-3">
+                <button type="button" onclick="toggleFormNuevoItemModal()"
+                        class="px-3.5 py-1.5 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-xs font-bold flex items-center shadow-sm">
+                    <i class="bi bi-plus-lg mr-1.5"></i>Nuevo Ítem
+                </button>
+                <button onclick="cerrarVentanaEmergente('modalEmergenteCatalogo')" class="w-8 h-8 rounded-xl bg-white hover:bg-rose-50 hover:text-rose-600 flex items-center justify-center text-slate-400 transition-colors">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Formulario Plegable para Agregar Ítem -->
+        <div id="formNuevoItemContainer" class="hidden p-5 bg-brand-50/50 border-b border-brand-100 animate-slide-down">
+            <h4 class="text-xs font-black text-brand-900 uppercase tracking-wider mb-3 flex items-center">
+                <i class="bi bi-tag mr-1.5"></i>Agregar Producto / Servicio al Catálogo
+            </h4>
+            <form onsubmit="guardarItemDesdeModal(event)" class="space-y-3 text-xs">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div class="md:col-span-2">
+                        <label class="block font-bold text-slate-700 mb-1">Descripción del Ítem <span class="text-rose-500">*</span></label>
+                        <input type="text" id="m_item_desc" required placeholder="COMPRA DE DRILL 100% ALGODÓN ROJO" class="w-full px-3 py-2 bg-white border rounded-xl outline-none">
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-1">Unidad <span class="text-rose-500">*</span></label>
+                        <select id="m_item_unid" class="w-full px-3 py-2 bg-white border rounded-xl outline-none font-bold">
+                            <option value="UND">UND</option>
+                            <option value="Metros">Metros</option>
+                            <option value="Horas">Horas</option>
+                            <option value="Servicios">Servicios</option>
+                            <option value="Lote">Lote</option>
+                            <option value="KG">KG</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-1">Precio Referencial ($ USD)</label>
+                        <input type="number" step="0.01" min="0" id="m_item_precio" placeholder="5.31" class="w-full px-3 py-2 bg-white border rounded-xl font-mono outline-none">
+                    </div>
+                </div>
+                <div class="flex justify-end space-x-2 pt-1">
+                    <button type="button" onclick="toggleFormNuevoItemModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl">Cancelar</button>
+                    <button type="submit" id="btnGuardarItemModal" class="px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white font-bold rounded-xl shadow-md">Guardar Ítem</button>
+                </div>
+            </form>
+        </div>
+
+        <div class="flex-1 overflow-y-auto p-6">
+            <table class="w-full text-left text-xs" id="tablaModalCatalogo">
+                <thead class="bg-slate-100 text-slate-600 uppercase font-bold text-[10px] sticky top-0 border-b">
+                    <tr>
+                        <th class="px-4 py-3">Descripción</th>
+                        <th class="px-4 py-3 text-center w-28">Unidad</th>
+                        <th class="px-4 py-3 text-right w-36">Precio Unit. ($)</th>
+                    </tr>
+                </thead>
+                <tbody id="bodyModalCatalogo" class="divide-y divide-slate-100">
+                    <tr><td colspan="3" class="text-center py-8 text-slate-400">Cargando catálogo...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- =========================================================================
+     SCRIPTS DE CONTROL DE VENTANAS EMERGENTES (MODALES)
+     ========================================================================= -->
+<script>
+    function abrirVentanaEmergente(modalId) {
+        const modal = document.getElementById(modalId);
+        if (!modal) return;
+        modal.classList.remove('hidden');
+
+        // Cargar datos en vivo según el modal
+        if (modalId === 'modalEmergenteOrdenes') cargarOrdenesModal();
+        if (modalId === 'modalEmergenteAuditoria') cargarAuditoriaModal();
+        if (modalId === 'modalEmergenteProveedores') cargarProveedoresModal();
+        if (modalId === 'modalEmergenteProyectos') cargarProyectosModal();
+        if (modalId === 'modalEmergenteCatalogo') cargarCatalogoModal();
+    }
+
+    function cerrarVentanaEmergente(modalId) {
+        const modal = document.getElementById(modalId);
+        if (modal) modal.classList.add('hidden');
+    }
+
+    // Cerrar al presionar ESC o clic en backdrop
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            ['modalEmergenteOrdenes', 'modalEmergenteAuditoria', 'modalEmergenteProveedores', 'modalEmergenteProyectos', 'modalEmergenteCatalogo'].forEach(cerrarVentanaEmergente);
+        }
+    });
+
+    ['modalEmergenteOrdenes', 'modalEmergenteAuditoria', 'modalEmergenteProveedores', 'modalEmergenteProyectos', 'modalEmergenteCatalogo'].forEach(id => {
+        const m = document.getElementById(id);
+        if (m) {
+            m.addEventListener('click', (e) => {
+                if (e.target === m) cerrarVentanaEmergente(id);
+            });
+        }
+    });
+
+    // =========================================================================
+    // 1. CARGA DE ÓRDENES
+    // =========================================================================
+    let cacheOrdenesModal = [];
+
+    async function cargarOrdenesModal() {
+        const tbody = document.getElementById('bodyModalOrdenes');
+        tbody.innerHTML = '<tr><td colspan="8" class="text-center py-6 text-slate-400"><i class="bi bi-arrow-repeat animate-spin mr-2"></i>Consultando órdenes...</td></tr>';
+        try {
+            const res = await fetch('/api/ordenes');
+            const data = await res.json();
+            cacheOrdenesModal = data.ordenes || [];
+            renderTablaModalOrdenes(cacheOrdenesModal);
+        } catch (e) {
+            tbody.innerHTML = '<tr><td colspan="8" class="text-center py-6 text-rose-500 font-bold">Error cargando órdenes</td></tr>';
+        }
+    }
+
+    function renderTablaModalOrdenes(ordenes) {
+        const tbody = document.getElementById('bodyModalOrdenes');
+        if (!ordenes || ordenes.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="8" class="text-center py-8 text-slate-400">No hay órdenes registradas aún</td></tr>';
+            return;
+        }
+        tbody.innerHTML = ordenes.map(o => `
+            <tr class="hover:bg-slate-50 transition-colors">
+                <td class="px-4 py-3 font-mono font-black text-brand-700">${o.nro_orden || '-'}</td>
+                <td class="px-4 py-3 font-medium text-slate-600 whitespace-nowrap">${o.fecha_emision || '-'}</td>
+                <td class="px-4 py-3 font-bold text-slate-900">${o.proveedor_razon_social || '-'}</td>
+                <td class="px-4 py-3 font-medium text-slate-700">${(o.proyectos && o.proyectos.nombre) || o.proyecto_nombre || 'General'}</td>
+                <td class="px-4 py-3 text-right font-mono text-slate-500 font-bold">${parseFloat(o.tasa_bcv || 0).toLocaleString('es-VE', {minimumFractionDigits: 4})}</td>
+                <td class="px-4 py-3 text-right font-black text-emerald-700">$${parseFloat(o.total_usd || 0).toLocaleString('es-VE', {minimumFractionDigits: 2})}</td>
+                <td class="px-4 py-3 text-right font-black text-slate-900">Bs. ${parseFloat(o.total_bs || 0).toLocaleString('es-VE', {minimumFractionDigits: 2})}</td>
+                <td class="px-4 py-3 text-center">
+                    <a href="/orden/${o.id}/pdf" target="_blank"
+                       class="inline-flex items-center px-2.5 py-1 bg-brand-50 hover:bg-brand-100 text-brand-800 rounded-lg font-bold text-[11px] transition-all">
+                        <i class="bi bi-file-earmark-pdf-fill mr-1 text-rose-600"></i>PDF
+                    </a>
+                </td>
+            </tr>
+        `).join('');
+    }
+
+    function filtrarModalOrdenes() {
+        const query = document.getElementById('busquedaModalOrdenes').value.toLowerCase();
+        const filtradas = cacheOrdenesModal.filter(o => 
+            (o.nro_orden && o.nro_orden.toLowerCase().includes(query)) ||
+            (o.proveedor_razon_social && o.proveedor_razon_social.toLowerCase().includes(query)) ||
+            (o.proyecto_nombre && o.proyecto_nombre.toLowerCase().includes(query))
+        );
+        renderTablaModalOrdenes(filtradas);
+    }
+
+    function exportarOrdenesCSV() {
+        if (!cacheOrdenesModal || cacheOrdenesModal.length === 0) {
+            alert('No hay órdenes para exportar.');
+            return;
+        }
+
+        const query = document.getElementById('busquedaModalOrdenes').value.toLowerCase();
+        const filtradas = cacheOrdenesModal.filter(o => 
+            (o.nro_orden && o.nro_orden.toLowerCase().includes(query)) ||
+            (o.proveedor_razon_social && o.proveedor_razon_social.toLowerCase().includes(query)) ||
+            (o.proyecto_nombre && o.proyecto_nombre.toLowerCase().includes(query))
+        );
+
+        let csvContent = "data:text/csv;charset=utf-8,";
+        csvContent += "Nro. Orden,Fecha,Proveedor,Proyecto,Tasa Oficial,Total USD,Total Bs\n";
+
+        filtradas.forEach(function(o) {
+            let row = [
+                o.nro_orden || '',
+                o.fecha_emision || '',
+                `"${(o.proveedor_razon_social || '').replace(/"/g, '""')}"`,
+                `"${((o.proyectos && o.proyectos.nombre) || o.proyecto_nombre || 'General').replace(/"/g, '""')}"`,
+                parseFloat(o.tasa_bcv || 0).toFixed(4),
+                parseFloat(o.total_usd || 0).toFixed(2),
+                parseFloat(o.total_bs || 0).toFixed(2)
+            ].join(",");
+            csvContent += row + "\n";
+        });
+
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", "ordenes_emitidas.csv");
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+
+    // =========================================================================
+    // 2. CARGA DE AUDITORÍA
+    // =========================================================================
+    async function cargarAuditoriaModal() {
+        const tbody = document.getElementById('bodyModalAuditoria');
+        tbody.innerHTML = '<tr><td colspan="5" class="text-center py-6 text-slate-400"><i class="bi bi-arrow-repeat animate-spin mr-2"></i>Consultando auditoría...</td></tr>';
+        try {
+            const res = await fetch('/api/movimientos');
+            const data = await res.json();
+            const movs = data.movimientos || [];
+            if (movs.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" class="text-center py-8 text-slate-400">Sin movimientos registrados</td></tr>';
+                return;
+            }
+            tbody.innerHTML = movs.map(m => `
+                <tr class="hover:bg-slate-50 transition-colors">
+                    <td class="px-4 py-3 font-mono text-[11px] text-slate-500 whitespace-nowrap">${m.created_at || '-'}</td>
+                    <td class="px-4 py-3 font-bold text-slate-900">${m.usuario_nombre || 'Loreidy'}</td>
+                    <td class="px-4 py-3">
+                        <span class="px-2 py-0.5 rounded-lg text-[10px] font-black bg-slate-100 text-slate-700 border">${m.accion || 'EVENTO'}</span>
+                    </td>
+                    <td class="px-4 py-3 text-[10px] font-bold uppercase text-slate-500">${m.modulo || '-'}</td>
+                    <td class="px-4 py-3 font-medium text-slate-700">${m.descripcion || '-'}</td>
+                </tr>
+            `).join('');
+        } catch (e) {
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center py-6 text-rose-500 font-bold">Error cargando auditoría</td></tr>';
+        }
+    }
+
+    // =========================================================================
+    // 3. CARGA DE PROVEEDORES
+    // =========================================================================
+    function toggleFormNuevoProveedorModal() {
+        document.getElementById('formNuevoProveedorContainer').classList.toggle('hidden');
+    }
+
+    async function cargarProveedoresModal() {
+        const tbody = document.getElementById('bodyModalProveedores');
+        tbody.innerHTML = '<tr><td colspan="4" class="text-center py-6 text-slate-400"><i class="bi bi-arrow-repeat animate-spin mr-2"></i>Consultando proveedores...</td></tr>';
+        try {
+            const res = await fetch('/api/proveedores');
+            const data = await res.json();
+            const provs = data.proveedores || [];
+            if (provs.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" class="text-center py-8 text-slate-400">No hay proveedores registrados</td></tr>';
+                return;
+            }
+            tbody.innerHTML = provs.map(p => `
+                <tr class="hover:bg-slate-50 transition-colors">
+                    <td class="px-4 py-3 font-bold text-slate-900">${p.razon_social}</td>
+                    <td class="px-4 py-3 font-mono font-bold text-slate-600">${p.rif}</td>
+                    <td class="px-4 py-3 font-medium text-slate-700">${p.banco}</td>
+                    <td class="px-4 py-3 font-mono text-slate-600">${p.num_cuenta}</td>
+                </tr>
+            `).join('');
+        } catch (e) {
+            tbody.innerHTML = '<tr><td colspan="4" class="text-center py-6 text-rose-500 font-bold">Error cargando proveedores</td></tr>';
+        }
+    }
+
+    async function guardarProveedorDesdeModal(e) {
+        e.preventDefault();
+        const btn = document.getElementById('btnGuardarProvModal');
+        btn.disabled = true;
+        btn.innerText = 'Guardando...';
+
+        const razon_social = document.getElementById('m_prov_razon').value;
+        const prefijo = document.getElementById('m_prov_rif_prefijo').value;
+        const numero = document.getElementById('m_prov_rif_numero').value;
+        const rif = `${prefijo}-${numero}`;
+        const banco = document.getElementById('m_prov_banco').value;
+        const num_cuenta = document.getElementById('m_prov_cuenta').value;
+
+        try {
+            const res = await fetch('/api/proveedores/nuevo', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({razon_social, rif, banco, num_cuenta, beneficiario: razon_social})
+            });
+            const data = await res.json();
+            if (res.ok && data.success) {
+                toggleFormNuevoProveedorModal();
+                cargarProveedoresModal();
+                // Si el canvas tiene select de proveedor, agregarlo
+                const sel = document.getElementById('canvas_proveedor_id');
+                if (sel) {
+                    const opt = new Option(`${data.proveedor.razon_social} (${data.proveedor.rif})`, data.proveedor.id, true, true);
+                    opt.dataset.rif = data.proveedor.rif;
+                    opt.dataset.beneficiario = data.proveedor.razon_social;
+                    opt.dataset.banco = data.proveedor.banco;
+                    opt.dataset.cuenta = data.proveedor.num_cuenta;
+                    sel.add(opt);
+                    if (typeof actualizarFichaProveedorCanvas === 'function') actualizarFichaProveedorCanvas();
+                }
+            } else {
+                alert(data.error || 'Error guardando proveedor');
+            }
+        } catch (err) {
+            alert('Error de conexión con el servidor');
+        } finally {
+            btn.disabled = false;
+            btn.innerText = 'Guardar Proveedor';
+        }
+    }
+
+    // =========================================================================
+    // 4. CARGA DE PROYECTOS
+    // =========================================================================
+    function toggleFormNuevoProyectoModal() {
+        document.getElementById('formNuevoProyectoContainer').classList.toggle('hidden');
+    }
+
+    async function cargarProyectosModal() {
+        const tbody = document.getElementById('bodyModalProyectos');
+        tbody.innerHTML = '<tr><td colspan="3" class="text-center py-6 text-slate-400"><i class="bi bi-arrow-repeat animate-spin mr-2"></i>Consultando proyectos...</td></tr>';
+        try {
+            const res = await fetch('/api/proyectos');
+            const data = await res.json();
+            const proys = data.proyectos || [];
+            if (proys.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="3" class="text-center py-8 text-slate-400">No hay proyectos registrados</td></tr>';
+                return;
+            }
+            tbody.innerHTML = proys.map(p => `
+                <tr class="hover:bg-slate-50 transition-colors">
+                    <td class="px-4 py-3 font-mono font-bold text-brand-700">${p.codigo}</td>
+                    <td class="px-4 py-3 font-bold text-slate-900">${p.nombre}</td>
+                    <td class="px-4 py-3 text-center">
+                        <span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            Activo
+                        </span>
+                    </td>
+                </tr>
+            `).join('');
+        } catch (e) {
+            tbody.innerHTML = '<tr><td colspan="3" class="text-center py-6 text-rose-500 font-bold">Error cargando proyectos</td></tr>';
+        }
+    }
+
+    async function guardarProyectoDesdeModal(e) {
+        e.preventDefault();
+        const btn = document.getElementById('btnGuardarProyModal');
+        btn.disabled = true;
+        btn.innerText = 'Guardando...';
+
+        const codigo = document.getElementById('m_proy_codigo').value;
+        const nombre = document.getElementById('m_proy_nombre').value;
+
+        try {
+            const res = await fetch('/api/proyectos/nuevo', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({codigo, nombre})
+            });
+            const data = await res.json();
+            if (res.ok && data.success) {
+                toggleFormNuevoProyectoModal();
+                cargarProyectosModal();
+                const sel = document.getElementById('canvas_proyecto_id');
+                if (sel) {
+                    const opt = new Option(`${data.codigo} — ${data.nombre}`, data.id, true, true);
+                    sel.add(opt);
+                }
+            } else {
+                alert(data.error || 'Error guardando proyecto');
+            }
+        } catch (err) {
+            alert('Error de conexión con el servidor');
+        } finally {
+            btn.disabled = false;
+            btn.innerText = 'Guardar Proyecto';
+        }
+    }
+
+    // =========================================================================
+    // 5. CARGA DE CATÁLOGO DE ÍTEMS
+    // =========================================================================
+    function toggleFormNuevoItemModal() {
+        document.getElementById('formNuevoItemContainer').classList.toggle('hidden');
+    }
+
+    async function cargarCatalogoModal() {
+        const tbody = document.getElementById('bodyModalCatalogo');
+        tbody.innerHTML = '<tr><td colspan="3" class="text-center py-6 text-slate-400"><i class="bi bi-arrow-repeat animate-spin mr-2"></i>Consultando catálogo...</td></tr>';
+        try {
+            const res = await fetch('/api/items');
+            const data = await res.json();
+            const items = data.items || [];
+            if (items.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="3" class="text-center py-8 text-slate-400">No hay ítems en el catálogo</td></tr>';
+                return;
+            }
+            tbody.innerHTML = items.map(it => `
+                <tr class="hover:bg-slate-50 transition-colors">
+                    <td class="px-4 py-3 font-bold text-slate-900">${it.descripcion}</td>
+                    <td class="px-4 py-3 text-center font-semibold text-slate-600">${it.unidad || 'UND'}</td>
+                    <td class="px-4 py-3 text-right font-mono font-black text-emerald-700">$${parseFloat(it.precio_referencial_usd || it.precio_unitario_usd || 0).toLocaleString('es-VE', {minimumFractionDigits: 2})}</td>
+                </tr>
+            `).join('');
+        } catch (e) {
+            tbody.innerHTML = '<tr><td colspan="3" class="text-center py-6 text-rose-500 font-bold">Error cargando catálogo</td></tr>';
+        }
+    }
+
+    async function guardarItemDesdeModal(e) {
+        e.preventDefault();
+        const btn = document.getElementById('btnGuardarItemModal');
+        btn.disabled = true;
+        btn.innerText = 'Guardando...';
+
+        const descripcion = document.getElementById('m_item_desc').value;
+        const unidad = document.getElementById('m_item_unid').value;
+        const precio_referencial_usd = document.getElementById('m_item_precio').value || 0;
+
+        try {
+            const res = await fetch('/api/items/nuevo', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({descripcion, unidad, precio_referencial_usd})
+            });
+            const data = await res.json();
+            if (res.ok && data.success) {
+                toggleFormNuevoItemModal();
+                cargarCatalogoModal();
+                // Si el canvas tiene select de catalogo, agregarlo
+                const sel = document.getElementById('canvasSelectCatalogo');
+                if (sel) {
+                    const opt = new Option(`${data.item.descripcion} ($${data.item.precio_referencial_usd})`, data.item.id);
+                    opt.dataset.desc = data.item.descripcion;
+                    opt.dataset.unid = data.item.unidad;
+                    opt.dataset.precio = data.item.precio_referencial_usd;
+                    sel.add(opt);
+                }
+            } else {
+                alert(data.error || 'Error guardando ítem');
+            }
+        } catch (err) {
+            alert('Error de conexión con el servidor');
+        } finally {
+            btn.disabled = false;
+            btn.innerText = 'Guardar Ítem';
+        }
+    }
+</script>

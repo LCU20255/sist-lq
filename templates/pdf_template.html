@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Orden de Compra {{ orden.nro_orden }}</title>
+    <style>
+        /* ==========================================================================
+           WEASYPRINT & IMPRESIÓN ESTRICTA - FORMATO DIGITAL TIUNA COMPLEJO INDUSTRIAL
+           ========================================================================== */
+        @page {
+            size: A4 portrait;
+            margin: 10mm 14mm 10mm 14mm;
+            @bottom-right {
+                content: "";
+            }
+        }
+
+        * {
+            box-sizing: border-box;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+        }
+
+        body {
+            font-family: Arial, Helvetica, sans-serif;
+            color: #000000;
+            margin: 0;
+            padding: 0;
+            font-size: 8.5pt;
+            line-height: 1.25;
+            background-color: #ffffff;
+        }
+
+        /* Estructura de Tablas Global */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        td, th {
+            vertical-align: top;
+            padding: 0;
+        }
+
+        /* -------------------------------------------------------------------------
+           1. CABECERA PRINCIPAL (LOGO TIUNA GRANDE + ORDEN DE COMPRA NRO)
+           ------------------------------------------------------------------------- */
+        .header-table {
+            width: 100%;
+            margin-bottom: 12px;
+        }
+
+        .logo-container {
+            display: inline-block;
+            vertical-align: middle;
+        }
+
+        .logo-container img {
+            height: 64px;
+            width: auto;
+            max-width: 320px;
+            display: block;
+        }
+
+        .header-title-box {
+            text-align: right;
+            vertical-align: middle;
+            padding-top: 10px;
+        }
+
+        .title-text {
+            font-size: 13pt;
+            font-weight: bold;
+            color: #000000;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .order-number {
+            font-size: 13.5pt;
+            font-weight: bold;
+            color: #000000;
+            font-family: Arial, Helvetica, sans-serif;
+            margin-left: 18px;
+        }
+
+        /* -------------------------------------------------------------------------
+           2. FILA DE METADATOS (RAZÓN SOCIAL / FECHA SOLICITUD / PROYECTO)
+           ------------------------------------------------------------------------- */
+        .meta-table {
+            width: 100%;
+            margin-top: 8px;
+            margin-bottom: 12px;
+            font-size: 8.5pt;
+        }
+
+        .meta-table td {
+            vertical-align: middle;
+            padding: 3px 0;
+        }
+
+        .meta-label {
+            font-weight: bold;
+            text-transform: uppercase;
+            color: #000000;
+        }
+
+        .meta-value {
+            color: #000000;
+            font-weight: normal;
+        }
+
+        /* -------------------------------------------------------------------------
+           3. TABLA PRINCIPAL DE ÍTEMS / RENGLONES CON ESPACIO EN BLANCO VACÍO
+           ------------------------------------------------------------------------- */
+        table.items-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 4px;
+        }
+
+        table.items-table thead th {
+            background-color: #000000;
+            color: #ffffff;
+            font-size: 8pt;
+            font-weight: bold;
+            text-transform: uppercase;
+            padding: 4px 6px;
+            border: 1px solid #000000;
+        }
+
+        table.items-table tbody td {
+            padding: 4px 6px;
+            border-left: 1px solid transparent;
+            border-right: 1px solid transparent;
+            border-bottom: 1px solid transparent;
+            font-size: 8pt;
+        }
+
+        .col-item { width: 6%; text-align: center; }
+        .col-desc { width: 48%; text-align: left; }
+        .col-cant { width: 11%; text-align: center; }
+        .col-unid { width: 11%; text-align: center; }
+        .col-pu   { width: 12%; text-align: right; }
+        .col-tot  { width: 12%; text-align: right; }
+
+        .spacer-row td {
+            border: none !important;
+            padding: 0;
+        }
+
+        /* -------------------------------------------------------------------------
+           4. BLOQUE INFERIOR: BENEFICIARIO (IZQ) Y TOTALES (DER) MÁS ABAJO
+           ------------------------------------------------------------------------- */
+        .summary-box {
+            width: 100%;
+            border: 1px solid #000000;
+            border-collapse: collapse;
+        }
+
+        .prov-column {
+            width: 50%;
+            vertical-align: top;
+            padding: 8px 10px;
+            border-right: 1px solid #000000;
+        }
+
+        .prov-row {
+            margin-bottom: 4px;
+            font-size: 8pt;
+        }
+
+        .prov-label {
+            font-weight: bold;
+            display: inline-block;
+            width: 100px;
+            text-transform: uppercase;
+            color: #000000;
+        }
+
+        .prov-val {
+            color: #000000;
+        }
+
+        .totals-column {
+            width: 50%;
+            vertical-align: top;
+            padding: 0;
+        }
+
+        table.totals-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        table.totals-table td {
+            padding: 2.5px 8px;
+            font-size: 8pt;
+        }
+
+        .total-usd-row {
+            border-top: 1px solid #000000;
+            font-weight: bold;
+        }
+
+        .tc-highlight-row td {
+            background-color: #facc15 !important;
+            font-weight: bold;
+            border-top: 1px solid #000000;
+            border-bottom: 1px solid #000000;
+            padding: 2.5px 8px;
+            color: #000000;
+        }
+
+        .total-bs-row {
+            border-top: 1px solid #000000;
+            font-weight: bold;
+        }
+
+        /* -------------------------------------------------------------------------
+           5. OBSERVACIONES
+           ------------------------------------------------------------------------- */
+        .obs-container {
+            width: 100%;
+            border: 1px solid #000000;
+            border-top: none;
+            padding: 6px 10px;
+            min-height: 40px;
+            font-size: 8pt;
+        }
+
+        .obs-label {
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        /* -------------------------------------------------------------------------
+           6. FIRMAS SEPARADAS (BARRA NEGRA + 3 COLUMNAS: SOLICITADO, REVISADO Y SELLO)
+           ------------------------------------------------------------------------- */
+        .signatures-section {
+            margin-top: 16px; /* Separación explícita solicitada por el usuario */
+        }
+
+        .signatures-header-bar {
+            background-color: #000000;
+            color: #ffffff;
+            font-size: 8pt;
+            font-weight: bold;
+            text-align: center;
+            padding: 3.5px 0;
+            text-transform: uppercase;
+            border: 1px solid #000000;
+        }
+
+        table.signatures-table {
+            width: 100%;
+            border-collapse: collapse;
+            border: 1px solid #000000;
+            border-top: none;
+        }
+
+        table.signatures-table td {
+            width: 33.33%;
+            border-right: 1px solid #000000;
+            padding: 6px 8px;
+            height: 95px;
+            vertical-align: top;
+            text-align: center;
+        }
+
+        table.signatures-table td:last-child {
+            border-right: none;
+        }
+
+        .sig-title {
+            font-weight: bold;
+            font-size: 8pt;
+            text-transform: uppercase;
+            color: #000000;
+        }
+
+        .sig-name {
+            margin-top: 55px;
+            font-size: 8pt;
+            font-weight: bold;
+            text-transform: uppercase;
+            color: #000000;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 1. CABECERA: LOGO TIUNA MÁS GRANDE + ORDEN DE COMPRA NRO -->
+    <table class="header-table">
+        <tr>
+            <td style="width: 50%; vertical-align: middle;">
+                <div class="logo-container">
+                    {% if logo_b64 %}
+                        <img src="data:image/png;base64,{{ logo_b64 }}" alt="TIUNA COMPLEJO INDUSTRIAL">
+                    {% else %}
+                        <img src="/static/img/cit.png" alt="TIUNA COMPLEJO INDUSTRIAL">
+                    {% endif %}
+                </div>
+            </td>
+            <td class="header-title-box" style="width: 50%;">
+                <span class="title-text">ORDEN DE COMPRA Nro</span>
+                <span class="order-number">{{ orden.nro_orden }}</span>
+            </td>
+        </tr>
+    </table>
+
+    <!-- 2. METADATOS SUPERIORES -->
+    <table class="meta-table">
+        <tr>
+            <td style="width: 42%;">
+                <span class="meta-label">RAZÓN SOCIAL:</span>&nbsp;&nbsp;
+                <span class="meta-value">{{ orden.proveedor_razon_social }}</span>
+            </td>
+            <td style="width: 28%; text-align: center;">
+                <span class="meta-label">Fecha de Solicitud:</span>&nbsp;&nbsp;
+                <span class="meta-value">{{ orden.fecha_emision }}</span>
+            </td>
+            <td style="width: 30%; text-align: right;">
+                <span class="meta-label">PROYECTO:</span>&nbsp;&nbsp;
+                <span class="meta-value">{{ proyecto_nombre or "GENERAL" }}</span>
+            </td>
+        </tr>
+    </table>
+
+    <!-- 3. TABLA DE ÍTEMS CON ESPACIADO EN BLANCO AMPLIO (EMPUJA LOS TOTALES AL FONDO) -->
+    <table class="items-table">
+        <thead>
+            <tr>
+                <th class="col-item">Items</th>
+                <th class="col-desc">Descripción</th>
+                <th class="col-cant">Cantidad</th>
+                <th class="col-unid">Unidad</th>
+                <th class="col-pu">Precio Unit. ($)</th>
+                <th class="col-tot">Total ($)</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% if items %}
+                {% for item in items %}
+                    <tr>
+                        <td class="col-item">{{ item.renglon_num }}</td>
+                        <td class="col-desc">{{ item.descripcion }}</td>
+                        <td class="col-cant">{{ format_decimal(item.cantidad, 0 if (item.cantidad % 1 == 0) else 2) }}</td>
+                        <td class="col-unid">{{ item.unidad }}</td>
+                        <td class="col-pu">{{ format_decimal(item.precio_unitario_usd, 2) }}</td>
+                        <td class="col-tot">{{ format_decimal(item.total_linea_usd, 2) }}</td>
+                    </tr>
+                {% endfor %}
+            {% endif %}
+
+            <!-- Espacio en blanco amplio para empujar el bloque de totales y firmas al fondo exacto de la página -->
+            {% set item_count = items|length if items else 0 %}
+            {% set spacer_calc = 430 - (item_count * 24) %}
+            <tr class="spacer-row">
+                <td colspan="6" style="height: {{ spacer_calc if spacer_calc > 50 else 50 }}px;"></td>
+            </tr>
+        </tbody>
+    </table>
+
+    <!-- 4. BLOQUE RESUMEN (BENEFICIARIO + TOTALES USD + T/C AMARILLA + TOTALES BS) -->
+    <table class="summary-box">
+        <tr>
+            <!-- COLUMNA IZQUIERDA: BENEFICIARIO -->
+            <td class="prov-column">
+                <div class="prov-row">
+                    <span class="prov-label">BENEFICIARIO:</span>
+                    <span class="prov-val">{{ orden.proveedor_beneficiario or orden.proveedor_razon_social }}</span>
+                </div>
+                <div class="prov-row">
+                    <span class="prov-label">CI / RIF:</span>
+                    <span class="prov-val">{{ orden.proveedor_rif }}</span>
+                </div>
+                <div class="prov-row">
+                    <span class="prov-label">BANCO:</span>
+                    <span class="prov-val">{{ orden.proveedor_banco }}</span>
+                </div>
+                <div class="prov-row">
+                    <span class="prov-label">NRO DE CTA:</span>
+                    <span class="prov-val">{{ orden.proveedor_num_cuenta }}</span>
+                </div>
+            </td>
+
+            <!-- COLUMNA DERECHA: TOTALES USD / TC AMARILLA / TOTALES BS -->
+            <td class="totals-column">
+                <table class="totals-table">
+                    <!-- TOTALES USD -->
+                    <tr>
+                        <td style="width: 58%; text-align: left;">Sub Total Exento USD:</td>
+                        <td style="width: 42%; text-align: right;">{{ "-" if orden.subtotal_exento_usd == 0 else format_decimal(orden.subtotal_exento_usd, 2) }}</td>
+                    </tr>
+                    <tr>
+                        <td style="text-align: left;">Sub Total Gravable USD:</td>
+                        <td style="text-align: right;">{{ "-" if orden.subtotal_gravable_usd == 0 else format_decimal(orden.subtotal_gravable_usd, 2) }}</td>
+                    </tr>
+                    <tr>
+                        <td style="text-align: left;">IVA Alícuota 16% USD:</td>
+                        <td style="text-align: right;">{{ "-" if orden.iva_usd == 0 else format_decimal(orden.iva_usd, 2) }}</td>
+                    </tr>
+                    <tr>
+                        <td style="text-align: left;">Descuento USD:</td>
+                        <td style="text-align: right;">{{ "-" if orden.descuento_usd == 0 else "-" ~ format_decimal(orden.descuento_usd, 2) }}</td>
+                    </tr>
+                    <tr class="total-usd-row">
+                        <td style="text-align: left;">Total Factura USD:</td>
+                        <td style="text-align: right;">${{ format_decimal(orden.total_usd, 2) }}</td>
+                    </tr>
+
+                    <!-- FRANJA AMARILLA TASA DE CAMBIO BCV -->
+                    <tr class="tc-highlight-row">
+                        <td style="text-align: left;">T/C</td>
+                        <td style="text-align: right;">{{ format_decimal(orden.tasa_bcv, 4) }}</td>
+                    </tr>
+
+                    <!-- TOTALES BS -->
+                    <tr>
+                        <td style="text-align: left;">Sub Total Exento Bs:</td>
+                        <td style="text-align: right;">Bs.S {{ "-" if orden.subtotal_exento_bs == 0 else format_decimal(orden.subtotal_exento_bs, 2) }}</td>
+                    </tr>
+                    <tr>
+                        <td style="text-align: left;">Sub Total Gravable Bs:</td>
+                        <td style="text-align: right;">Bs.S {{ "-" if orden.subtotal_gravable_bs == 0 else format_decimal(orden.subtotal_gravable_bs, 2) }}</td>
+                    </tr>
+                    <tr>
+                        <td style="text-align: left;">IVA Alícuota 16% Bs:</td>
+                        <td style="text-align: right;">Bs.S {{ "-" if orden.iva_bs == 0 else format_decimal(orden.iva_bs, 2) }}</td>
+                    </tr>
+                    <tr>
+                        <td style="text-align: left;">Descuento Bs:</td>
+                        <td style="text-align: right;">Bs.S {{ "-" if orden.descuento_bs == 0 else "-" ~ format_decimal(orden.descuento_bs, 2) }}</td>
+                    </tr>
+                    <tr class="total-bs-row">
+                        <td style="text-align: left;">Total Factura Bs:</td>
+                        <td style="text-align: right;">Bs.S {{ format_decimal(orden.total_bs, 2) }}</td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+
+    <!-- 5. RECUADRO DE OBSERVACIONES -->
+    <div class="obs-container">
+        <span class="obs-label">OBSERVACIONES:</span>&nbsp;&nbsp;
+        <span>{{ orden.observaciones or "" }}</span>
+    </div>
+
+    <!-- 6. SECCIÓN DE FIRMAS SEPARADA (BARRA NEGRA + 3 COLUMNAS: SOLICITADO, REVISADO Y SELLO) -->
+    <div class="signatures-section">
+        <div class="signatures-header-bar">FIRMAS</div>
+        <table class="signatures-table">
+            <tr>
+                <!-- Columna 1: Solicitado Por -->
+                <td>
+                    <div class="sig-title">SOLICITADO POR</div>
+                    <div class="sig-name">{{ orden.firmante_solicitado or "LOREIDY QUIÑONEZ" }}</div>
+                </td>
+                <!-- Columna 2: Revisado Por -->
+                <td>
+                    <div class="sig-title">REVISADO POR</div>
+                    <div class="sig-name">{{ orden.firmante_revisado or "RAMON RIVAS" }}</div>
+                </td>
+                <!-- Columna 3: Espacio para Sello Físico -->
+                <td>
+                    <div class="sig-title" style="color: transparent;">SELLO</div>
+                    <!-- Dejado intencionalmente en blanco para estampar sello físico húmedo -->
+                </td>
+            </tr>
+        </table>
+    </div>
+
+    <!-- Script de impresión automática -->
+    <script>
+        window.onload = function() {
+            setTimeout(function() { window.print(); }, 500);
+        };
+    </script>
+</body>
+</html>

@@ -1,0 +1,790 @@
+{% extends "layout.html" %}
+
+{% block title %}Nueva Orden de Compra - SIST-LQ{% endblock %}
+{% block page_title %}Emisión de Orden de Compra{% endblock %}
+
+{% block header_actions %}
+<a href="{{ url_for('main.dashboard') }}" class="inline-flex items-center px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-all">
+    <i class="bi bi-arrow-left mr-2"></i>Volver al Listado
+</a>
+{% endblock %}
+
+{% block content %}
+<form id="ordenForm" action="{{ url_for('main.nueva_orden') }}" method="POST" class="space-y-6 max-w-6xl mx-auto pb-12">
+    
+    <!-- =========================================================================
+         SECCIÓN 1: DATOS CABECERA (NRO ORDEN, FECHA, PROYECTO, TASA BCV INTELIGENTE)
+         ========================================================================= -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        <!-- Bloque Principal de la Orden -->
+        <div class="lg:col-span-2 bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-5">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-4 gap-2">
+                <h3 class="text-sm font-extrabold text-slate-800 flex items-center">
+                    <i class="bi bi-file-earmark-ruled-fill text-brand-600 mr-2 text-lg"></i>
+                    Identificación del Documento & Proyecto
+                </h3>
+                
+                <!-- NÚMERO DE ORDEN DE COMPRA (CONFIGURABLE Y VISIBLE) -->
+                <div class="flex items-center space-x-2 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl">
+                    <label for="nro_orden" class="text-[11px] font-bold text-slate-600 uppercase">Nro. Orden:</label>
+                    <input type="text" name="nro_orden" id="nro_orden" value="000271" required placeholder="000270"
+                           class="w-28 bg-white border border-slate-300 rounded-lg px-2.5 py-1 text-slate-900 font-mono font-bold text-xs text-center focus:ring-2 focus:ring-brand-500 focus:outline-none">
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <!-- Fecha de Emisión -->
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wider">
+                        Fecha de Solicitud *
+                    </label>
+                    <input type="date" name="fecha_emision" id="fecha_emision" value="2026-09-03" required
+                           class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 font-medium focus:bg-white focus:ring-2 focus:ring-brand-500 focus:outline-none">
+                </div>
+
+                <!-- Proyecto Asignado -->
+                <div>
+                    <div class="flex items-center justify-between mb-1.5">
+                        <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                            Proyecto Asignado *
+                        </label>
+                        <button type="button" onclick="abrirModalProyecto()" class="text-brand-600 hover:text-brand-700 text-xs font-bold flex items-center">
+                            <i class="bi bi-plus-circle mr-1"></i>Nuevo
+                        </button>
+                    </div>
+                    <select name="proyecto_id" id="proyecto_id" required 
+                            class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 font-medium focus:bg-white focus:ring-2 focus:ring-brand-500 focus:outline-none">
+                        {% for proy in proyectos %}
+                            <option value="{{ proy.id }}">{{ proy.codigo }} — {{ proy.nombre }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <!-- SELECTOR INTELIGENTE DE TASA BCV (USD, EUR, PROMEDIO & FECHA HISTÓRICA) -->
+            <div class="bg-gradient-to-br from-brand-50/70 to-emerald-50/40 border border-brand-200/80 rounded-2xl p-4 space-y-3">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <span class="text-xs font-bold text-brand-900 flex items-center">
+                        <i class="bi bi-bank2 mr-1.5 text-brand-700"></i>Cotización Oficial BCV Inteligente
+                    </span>
+                    <span id="bcvStatusBadge" class="text-[10px] bg-brand-100 text-brand-800 font-bold px-2 py-0.5 rounded-full border border-brand-300">
+                        ve.dolarapi.com Oficial
+                    </span>
+                </div>
+
+                <!-- 3 Botones de Tipo de Tasa -->
+                <div class="grid grid-cols-3 gap-2">
+                    <button type="button" onclick="seleccionarTipoTasa('USD')" id="btn-tasa-usd"
+                            class="py-2 px-3 text-xs font-bold rounded-xl border transition-all duration-200 bg-brand-600 text-white shadow-sm border-brand-600 flex items-center justify-center">
+                        <i class="bi bi-currency-dollar mr-1"></i>Dólar Oficial
+                    </button>
+                    <button type="button" onclick="seleccionarTipoTasa('EUR')" id="btn-tasa-eur"
+                            class="py-2 px-3 text-xs font-bold rounded-xl border transition-all duration-200 bg-white text-slate-700 hover:bg-slate-50 border-slate-200 flex items-center justify-center">
+                        <i class="bi bi-currency-euro mr-1"></i>Euro Oficial
+                    </button>
+                    <button type="button" onclick="seleccionarTipoTasa('PROMEDIO')" id="btn-tasa-promedio"
+                            class="py-2 px-3 text-xs font-bold rounded-xl border transition-all duration-200 bg-white text-slate-700 hover:bg-slate-50 border-slate-200 flex items-center justify-center">
+                        <i class="bi bi-percent mr-1"></i>Promedio
+                    </button>
+                </div>
+                <input type="hidden" name="tipo_tasa" id="tipo_tasa" value="USD">
+
+                <!-- Selector de Fecha de la Tasa (Independiente de la Solicitud) -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                    <div>
+                        <div class="flex items-center justify-between mb-1">
+                            <label class="block text-[11px] font-bold text-slate-700 uppercase">
+                                Fecha de la Tasa:
+                            </label>
+                            <div class="space-x-1">
+                                <button type="button" onclick="setFechaTasaOffset(0)" class="text-[10px] text-brand-700 hover:underline font-bold">Hoy</button>
+                                <span class="text-slate-300">|</span>
+                                <button type="button" onclick="setFechaTasaOffset(1)" class="text-[10px] text-brand-700 hover:underline font-bold">Ayer</button>
+                                <span class="text-slate-300">|</span>
+                                <button type="button" onclick="setFechaTasaOffset(5)" class="text-[10px] text-brand-700 hover:underline font-bold">Hace 5 días</button>
+                            </div>
+                        </div>
+                        <input type="date" id="fecha_tasa" value="2026-09-03" onchange="consultarTasaBCV()"
+                               class="w-full bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-xs text-slate-800 font-medium focus:ring-2 focus:ring-brand-500 focus:outline-none">
+                    </div>
+
+                    <div>
+                        <label class="block text-[11px] font-bold text-slate-700 mb-1 uppercase">
+                            Valor de Tasa Aplicada (Bs.)
+                        </label>
+                        <div class="relative">
+                            <input type="number" step="0.0001" min="0.0001" id="tasa_bcv" name="tasa_bcv" value="804.8109" required oninput="calcularTotales()"
+                                   class="w-full bg-white border border-brand-300 rounded-xl px-3 py-1.5 text-xs text-brand-900 font-mono font-black focus:ring-2 focus:ring-brand-500 focus:outline-none">
+                            <span class="absolute inset-y-0 right-0 pr-3 flex items-center text-[10px] font-bold text-slate-400 pointer-events-none">
+                                USD/VES
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Selector de Proveedor -->
+            <div>
+                <div class="flex items-center justify-between mb-1.5">
+                    <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                        Proveedor / Beneficiario *
+                    </label>
+                    <button type="button" onclick="abrirModalProveedor()" class="text-brand-600 hover:text-brand-700 text-xs font-bold flex items-center">
+                        <i class="bi bi-plus-circle mr-1"></i>Nuevo Proveedor
+                    </button>
+                </div>
+                <select id="proveedor_id" name="proveedor_id" required onchange="actualizarPreviewProveedor()"
+                        class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 font-medium focus:bg-white focus:ring-2 focus:ring-brand-500 focus:outline-none">
+                    {% for prov in proveedores %}
+                        <option value="{{ prov.id }}" 
+                                data-rif="{{ prov.rif }}" 
+                                data-beneficiario="{{ prov.beneficiario or prov.razon_social }}" 
+                                data-banco="{{ prov.banco }}" 
+                                data-cuenta="{{ prov.num_cuenta }}">
+                            {{ prov.razon_social }} (RIF: {{ prov.rif }})
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <!-- Ficha del Beneficiario (Inmutabilidad Histórica) -->
+        <div class="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm flex flex-col justify-between">
+            <div>
+                <h3 class="text-sm font-extrabold text-slate-800 border-b border-slate-100 pb-3 flex items-center">
+                    <i class="bi bi-building-check text-brand-600 mr-2 text-base"></i>
+                    Ficha Bancaria (Proveedor)
+                </h3>
+                <div class="mt-4 space-y-3 text-xs">
+                    <div>
+                        <span class="text-slate-400 block text-[10px] font-bold uppercase tracking-wider">Beneficiario:</span>
+                        <span id="preview_beneficiario" class="font-bold text-slate-900 block mt-0.5"></span>
+                    </div>
+                    <div>
+                        <span class="text-slate-400 block text-[10px] font-bold uppercase tracking-wider">CI / RIF:</span>
+                        <span id="preview_rif" class="font-mono font-bold text-brand-700 block mt-0.5"></span>
+                    </div>
+                    <div>
+                        <span class="text-slate-400 block text-[10px] font-bold uppercase tracking-wider">Banco:</span>
+                        <span id="preview_banco" class="font-bold text-slate-800 block mt-0.5"></span>
+                    </div>
+                    <div>
+                        <span class="text-slate-400 block text-[10px] font-bold uppercase tracking-wider">Nro. de Cuenta:</span>
+                        <span id="preview_cuenta" class="font-mono text-slate-800 tracking-wider block mt-0.5"></span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-6 p-3 bg-brand-50/80 rounded-2xl border border-brand-200/80 text-[11px] text-brand-900 flex items-start space-x-2">
+                <i class="bi bi-shield-lock-fill text-brand-600 text-sm mt-0.5"></i>
+                <p>Estos datos bancarios quedan congelados textualmente en la orden para garantizar auditoría histórica inmutable.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- =========================================================================
+         SECCIÓN 2: TABLA DE RENGLONES / ÍTEMS DE COMPRA
+         ========================================================================= -->
+    <div class="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-4">
+        <div class="flex items-center justify-between border-b border-slate-100 pb-4">
+            <div>
+                <h3 class="text-sm font-extrabold text-slate-800 flex items-center">
+                    <i class="bi bi-list-columns-reverse text-brand-600 mr-2 text-base"></i>
+                    Detalle de Ítems (Productos / Servicios)
+                </h3>
+                <p class="text-xs text-slate-400 mt-0.5">Agregue los renglones requeridos para esta adquisición</p>
+            </div>
+            <div class="flex items-center space-x-2">
+                <button type="button" onclick="abrirModalItem()" 
+                        class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold transition-all flex items-center">
+                    <i class="bi bi-tags-fill mr-1.5 text-brand-600"></i>Nuevo en Catálogo
+                </button>
+                <button type="button" id="btnAgregarItem" onclick="agregarRenglon()"
+                        class="px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-xs font-bold shadow-sm transition-all flex items-center">
+                    <i class="bi bi-plus-lg mr-1.5"></i>Agregar Renglón
+                </button>
+            </div>
+        </div>
+
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs">
+                <thead class="bg-slate-900 text-white uppercase text-[10px] font-bold tracking-wider rounded-xl">
+                    <tr>
+                        <th class="px-3 py-3 w-12 text-center rounded-l-xl">Items</th>
+                        <th class="px-3 py-3">Descripción del Producto / Servicio</th>
+                        <th class="px-3 py-3 w-28 text-center">Cantidad</th>
+                        <th class="px-3 py-3 w-28 text-center">Unidad</th>
+                        <th class="px-3 py-3 w-32 text-right">Precio Unit. ($)</th>
+                        <th class="px-3 py-3 w-36 text-right">Total ($)</th>
+                        <th class="px-3 py-3 w-12 text-center rounded-r-xl">Acción</th>
+                    </tr>
+                </thead>
+                <tbody id="itemsContainer" class="divide-y divide-slate-100">
+                    <!-- Renglones dinámicos se insertan aquí -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- =========================================================================
+         SECCIÓN 3: RESUMEN FINANCIERO & OBSERVACIONES
+         ========================================================================= -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        
+        <!-- Observaciones -->
+        <div class="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-3">
+            <h3 class="text-sm font-extrabold text-slate-800 flex items-center">
+                <i class="bi bi-chat-square-text-fill text-slate-400 mr-2"></i>
+                Observaciones & Condiciones de Entrega
+            </h3>
+            <textarea name="observaciones" rows="5" placeholder="Indique lugar y plazo de entrega, condiciones especiales de pago, requerimientos técnicos..."
+                      class="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 text-xs text-slate-800 placeholder-slate-400 focus:bg-white focus:ring-2 focus:ring-brand-500 focus:outline-none resize-none"></textarea>
+        </div>
+
+        <!-- Totales Calculados -->
+        <div class="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-3">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                <span class="text-sm font-extrabold text-slate-800 flex items-center">
+                    <i class="bi bi-calculator-fill text-brand-600 mr-2"></i>Cálculo de Totales Bimonetarios
+                </span>
+                <label class="flex items-center space-x-2 text-xs font-bold text-slate-700 cursor-pointer bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200">
+                    <input type="checkbox" id="aplica_iva" name="aplica_iva" checked onchange="calcularTotales()" class="rounded border-slate-300 text-brand-600 focus:ring-brand-500">
+                    <span>Aplica IVA 16%</span>
+                </label>
+            </div>
+
+            <!-- Descuento -->
+            <div class="flex items-center justify-between py-1 text-xs">
+                <span class="font-bold text-slate-600">Descuento Global ($ USD):</span>
+                <div class="w-32">
+                    <input type="number" step="0.01" min="0" id="descuento_usd" name="descuento_usd" value="0.00" oninput="calcularTotales()"
+                           class="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1 text-xs font-mono font-bold text-right text-rose-600 focus:bg-white focus:ring-2 focus:ring-brand-500 focus:outline-none">
+                </div>
+            </div>
+
+            <div class="space-y-1.5 text-xs pt-2">
+                <!-- TOTALES USD -->
+                <div class="flex justify-between text-slate-600">
+                    <span>Sub Total Exento USD:</span>
+                    <span id="disp_exento_usd" class="font-mono font-semibold">$0.00</span>
+                </div>
+                <div class="flex justify-between text-slate-600">
+                    <span>Sub Total Gravable USD:</span>
+                    <span id="disp_gravable_usd" class="font-mono font-semibold">$0.00</span>
+                </div>
+                <div class="flex justify-between text-slate-600">
+                    <span>IVA Alícuota 16% USD:</span>
+                    <span id="disp_iva_usd" class="font-mono font-semibold">$0.00</span>
+                </div>
+                <div class="flex justify-between text-rose-600">
+                    <span>Descuento USD:</span>
+                    <span id="disp_desc_usd" class="font-mono font-semibold">-$0.00</span>
+                </div>
+                <div class="flex justify-between text-brand-900 text-base font-black pt-2 border-t border-slate-200">
+                    <span>TOTAL FACTURA USD:</span>
+                    <span id="disp_total_usd" class="font-mono">$0.00</span>
+                </div>
+
+                <!-- FRANJA AMARILLA TASA DE CAMBIO BCV -->
+                <div class="bg-amber-300 text-slate-950 font-black px-3 py-1.5 rounded-xl flex justify-between items-center text-xs shadow-sm mt-3">
+                    <span>T/C BCV Aplicada:</span>
+                    <span id="disp_tc_resaltada" class="font-mono text-sm">804,8109</span>
+                </div>
+
+                <!-- TOTALES BS -->
+                <div class="pt-2 space-y-1 text-slate-600 text-[11px]">
+                    <div class="flex justify-between">
+                        <span>Sub Total Exento Bs:</span>
+                        <span id="disp_exento_bs" class="font-mono font-medium">Bs.S 0,00</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span>Sub Total Gravable Bs:</span>
+                        <span id="disp_gravable_bs" class="font-mono font-medium">Bs.S 0,00</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span>IVA Alícuota 16% Bs:</span>
+                        <span id="disp_iva_bs" class="font-mono font-medium">Bs.S 0,00</span>
+                    </div>
+                    <div class="flex justify-between text-rose-600">
+                        <span>Descuento Bs:</span>
+                        <span id="disp_desc_bs" class="font-mono font-medium">-Bs.S 0,00</span>
+                    </div>
+                    <div class="flex justify-between text-slate-900 text-sm font-black pt-1.5 border-t border-slate-200">
+                        <span>TOTAL FACTURA BS:</span>
+                        <span id="disp_total_bs" class="font-mono text-emerald-800">Bs.S 0,00</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- =========================================================================
+         SECCIÓN 4: FIRMAS AUTORIZADAS
+         ========================================================================= -->
+    <div class="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm">
+        <div class="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+            <h3 class="text-sm font-extrabold text-slate-800 flex items-center">
+                <i class="bi bi-pen-fill text-brand-600 mr-2 text-base"></i>
+                Personal Autorizado (Firmas Requeridas)
+            </h3>
+            <button type="button" onclick="abrirModalFirmante()" class="text-brand-600 hover:text-brand-700 text-xs font-bold flex items-center">
+                <i class="bi bi-plus-circle mr-1"></i>Nuevo Firmante
+            </button>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wider">
+                    Solicitado Por (Compras / Adquisiciones) *
+                </label>
+                <select name="firmante_solicitado" id="firmante_solicitado" required
+                        class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 font-bold focus:bg-white focus:ring-2 focus:ring-brand-500 focus:outline-none">
+                    {% for firm in firmantes %}
+                        <option value="{{ firm.nombre }}" {% if firm.nombre == 'LOREIDY QUIÑONEZ' %}selected{% endif %}>
+                            {{ firm.nombre }} — {{ firm.cargo }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wider">
+                    Revisado Por (Gerencia / Administración) *
+                </label>
+                <select name="firmante_revisado" id="firmante_revisado" required
+                        class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 font-bold focus:bg-white focus:ring-2 focus:ring-brand-500 focus:outline-none">
+                    {% for firm in firmantes %}
+                        <option value="{{ firm.nombre }}" {% if firm.nombre == 'RAMON RIVAS' %}selected{% endif %}>
+                            {{ firm.nombre }} — {{ firm.cargo }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <!-- BOTONES DE ENVÍO CON ANTI-DUPLICADOS -->
+    <div class="flex items-center justify-end space-x-4 pt-2">
+        <a href="{{ url_for('main.dashboard') }}" class="px-6 py-3 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold rounded-2xl text-xs transition-colors">
+            Cancelar
+        </a>
+        <button type="submit" id="btnSubmitForm" 
+                class="px-8 py-3.5 bg-gradient-to-r from-teal-600 to-brand-700 hover:from-teal-700 hover:to-brand-800 text-white font-extrabold rounded-2xl text-xs shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all flex items-center uppercase tracking-wider">
+            <i class="bi bi-file-earmark-arrow-up-fill mr-2 text-base"></i> Emitir Orden de Compra
+        </button>
+    </div>
+
+</form>
+
+<!-- =========================================================================
+     MODALES FLOTANTES (PROVEEDOR, PROYECTO, ÍTEM, FIRMANTE)
+     ========================================================================= -->
+
+<!-- Modal Nuevo Proveedor -->
+<div id="modalProveedor" class="fixed inset-0 z-50 hidden bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4">
+        <h4 class="text-base font-extrabold text-slate-800 flex items-center">
+            <i class="bi bi-building-add text-brand-600 mr-2"></i>Registrar Nuevo Proveedor
+        </h4>
+        <div class="space-y-3 text-xs">
+            <input type="text" id="m_prov_razon" placeholder="Razón Social *" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5">
+            <input type="text" id="m_prov_rif" placeholder="RIF (Ej. J-12345678-9) *" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 uppercase font-mono">
+            <input type="text" id="m_prov_beneficiario" placeholder="Beneficiario de Pago *" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5">
+            <input type="text" id="m_prov_banco" placeholder="Banco Receptor *" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5">
+            <input type="text" id="m_prov_cuenta" placeholder="Número de Cuenta (20 dígitos) *" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 font-mono">
+        </div>
+        <div class="flex justify-end space-x-2 pt-2">
+            <button type="button" onclick="cerrarModal('modalProveedor')" class="px-4 py-2 text-xs font-bold text-slate-600">Cancelar</button>
+            <button type="button" onclick="guardarProveedorModal()" class="px-5 py-2 bg-brand-600 text-white rounded-xl text-xs font-bold shadow">Guardar Proveedor</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Nuevo Proyecto -->
+<div id="modalProyecto" class="fixed inset-0 z-50 hidden bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4">
+        <h4 class="text-base font-extrabold text-slate-800 flex items-center">
+            <i class="bi bi-briefcase-fill text-brand-600 mr-2"></i>Crear Nuevo Proyecto
+        </h4>
+        <div class="space-y-3 text-xs">
+            <input type="text" id="m_proy_codigo" placeholder="Código Único (Ej. MUESTRAS INTEVEP) *" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 uppercase font-mono font-bold">
+            <input type="text" id="m_proy_nombre" placeholder="Nombre Descriptivo del Proyecto *" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5">
+        </div>
+        <div class="flex justify-end space-x-2 pt-2">
+            <button type="button" onclick="cerrarModal('modalProyecto')" class="px-4 py-2 text-xs font-bold text-slate-600">Cancelar</button>
+            <button type="button" onclick="guardarProyectoModal()" class="px-5 py-2 bg-brand-600 text-white rounded-xl text-xs font-bold shadow">Crear Proyecto</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Nuevo Ítem -->
+<div id="modalItem" class="fixed inset-0 z-50 hidden bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4">
+        <h4 class="text-base font-extrabold text-slate-800 flex items-center">
+            <i class="bi bi-tag-fill text-brand-600 mr-2"></i>Agregar Ítem al Catálogo
+        </h4>
+        <div class="space-y-3 text-xs">
+            <input type="text" id="m_item_desc" placeholder="Descripción del Ítem (Ej. COMPRA DE DRILL ROJO) *" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 uppercase">
+            <input type="text" id="m_item_unidad" placeholder="Unidad (Metros, UND, KG...) *" value="UND" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 uppercase">
+            <input type="number" step="0.01" id="m_item_precio" placeholder="Precio Referencial USD *" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 font-mono">
+        </div>
+        <div class="flex justify-end space-x-2 pt-2">
+            <button type="button" onclick="cerrarModal('modalItem')" class="px-4 py-2 text-xs font-bold text-slate-600">Cancelar</button>
+            <button type="button" onclick="guardarItemModal()" class="px-5 py-2 bg-brand-600 text-white rounded-xl text-xs font-bold shadow">Guardar Ítem</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Nuevo Firmante -->
+<div id="modalFirmante" class="fixed inset-0 z-50 hidden bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4">
+        <h4 class="text-base font-extrabold text-slate-800 flex items-center">
+            <i class="bi bi-person-plus-fill text-brand-600 mr-2"></i>Registrar Personal Autorizado
+        </h4>
+        <div class="space-y-3 text-xs">
+            <input type="text" id="m_firm_nombre" placeholder="Nombre y Apellido *" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 uppercase font-bold">
+            <input type="text" id="m_firm_cargo" placeholder="Cargo Institucional *" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5">
+        </div>
+        <div class="flex justify-end space-x-2 pt-2">
+            <button type="button" onclick="cerrarModal('modalFirmante')" class="px-4 py-2 text-xs font-bold text-slate-600">Cancelar</button>
+            <button type="button" onclick="guardarFirmanteModal()" class="px-5 py-2 bg-brand-600 text-white rounded-xl text-xs font-bold shadow">Registrar Firmante</button>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    // Catálogo precargado de ítems
+    const CATALOGO_ITEMS = [
+        {% for it in items_cat %}
+            { id: "{{ it.id }}", descripcion: "{{ it.descripcion }}", unidad: "{{ it.unidad }}", precio: {{ it.precio_referencial_usd or 0 }} },
+        {% endfor %}
+    ];
+
+    let monedaSeleccionada = "USD";
+
+    function formatNumberEs(num, places = 2) {
+        return Number(num || 0).toLocaleString('es-VE', { minimumFractionDigits: places, maximumFractionDigits: places });
+    }
+
+    // Inicializar Ficha del Proveedor
+    function actualizarPreviewProveedor() {
+        const sel = document.getElementById('proveedor_id');
+        if (!sel || !sel.options[sel.selectedIndex]) return;
+        const opt = sel.options[sel.selectedIndex];
+        document.getElementById('preview_beneficiario').innerText = opt.getAttribute('data-beneficiario') || '-';
+        document.getElementById('preview_rif').innerText = opt.getAttribute('data-rif') || '-';
+        document.getElementById('preview_banco').innerText = opt.getAttribute('data-banco') || '-';
+        document.getElementById('preview_cuenta').innerText = opt.getAttribute('data-cuenta') || '-';
+    }
+
+    // Selector de los 3 tipos de Tasa BCV
+    function seleccionarTipoTasa(tipo) {
+        monedaSeleccionada = tipo;
+        document.getElementById('tipo_tasa').value = tipo;
+
+        const btnUsd = document.getElementById('btn-tasa-usd');
+        const btnEur = document.getElementById('btn-tasa-eur');
+        const btnProm = document.getElementById('btn-tasa-promedio');
+
+        const activeClass = "py-2 px-3 text-xs font-bold rounded-xl border transition-all duration-200 bg-brand-600 text-white shadow-sm border-brand-600 flex items-center justify-center";
+        const inactiveClass = "py-2 px-3 text-xs font-bold rounded-xl border transition-all duration-200 bg-white text-slate-700 hover:bg-slate-50 border-slate-200 flex items-center justify-center";
+
+        btnUsd.className = (tipo === 'USD') ? activeClass : inactiveClass;
+        btnEur.className = (tipo === 'EUR') ? activeClass : inactiveClass;
+        btnProm.className = (tipo === 'PROMEDIO') ? activeClass : inactiveClass;
+
+        consultarTasaBCV();
+    }
+
+    // Botones rápidos de fecha de la tasa (Hoy, Ayer, Hace 5 días)
+    function setFechaTasaOffset(daysAgo) {
+        const d = new Date();
+        d.setDate(d.getDate() - daysAgo);
+        const yyyy = d.getFullYear();
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const dd = String(d.getDate()).padStart(2, '0');
+        document.getElementById('fecha_tasa').value = `${yyyy}-${mm}-${dd}`;
+        consultarTasaBCV();
+    }
+
+    // Consulta en vivo a la API BCV (DolarApi)
+    function consultarTasaBCV() {
+        const fecha = document.getElementById('fecha_tasa').value;
+        const badge = document.getElementById('bcvStatusBadge');
+        badge.innerText = "Consultando...";
+
+        fetch(`/api/bcv?fecha=${fecha}&moneda=${monedaSeleccionada}`)
+            .then(res => res.json())
+            .then(data => {
+                if (data && data.tasa) {
+                    document.getElementById('tasa_bcv').value = Number(data.tasa).toFixed(4);
+                    badge.innerText = `${data.moneda} Oficial (${data.fecha})`;
+                    document.getElementById('disp_tc_resaltada').innerText = formatNumberEs(data.tasa, 4);
+                    calcularTotales();
+                }
+            })
+            .catch(err => {
+                console.warn("Error API BCV:", err);
+                badge.innerText = "Fallback Manual";
+            });
+    }
+
+    // Agregar nuevo renglón dinámico a la tabla
+    function agregarRenglon(desc = "", cant = 1, unid = "UND", pu = 0) {
+        const container = document.getElementById('itemsContainer');
+        const count = container.children.length + 1;
+        const tr = document.createElement('tr');
+        tr.className = "hover:bg-slate-50 transition-colors duration-150 item-row";
+
+        tr.innerHTML = `
+            <td class="px-3 py-2.5 text-center font-mono font-bold text-slate-500 item-index">${count}</td>
+            <td class="px-3 py-2.5">
+                <input type="text" name="descripcion[]" value="${desc}" required placeholder="Descripción del producto o servicio"
+                       class="w-full bg-transparent border-0 border-b border-transparent focus:border-brand-500 focus:bg-white text-xs font-semibold text-slate-800 p-1 focus:outline-none uppercase">
+            </td>
+            <td class="px-3 py-2.5">
+                <input type="number" step="0.01" min="0.01" name="cantidad[]" value="${cant}" required oninput="calcularTotales()"
+                       class="w-full bg-slate-50 border border-slate-200 rounded-lg p-1 text-center font-mono font-bold text-xs focus:bg-white focus:outline-none focus:ring-1 focus:ring-brand-500">
+            </td>
+            <td class="px-3 py-2.5">
+                <input type="text" name="unidad[]" value="${unid}" required placeholder="UND"
+                       class="w-full bg-slate-50 border border-slate-200 rounded-lg p-1 text-center font-bold text-xs focus:bg-white focus:outline-none uppercase">
+            </td>
+            <td class="px-3 py-2.5 text-right">
+                <input type="number" step="0.01" min="0" name="precio_unitario_usd[]" value="${pu}" required oninput="calcularTotales()"
+                       class="w-full bg-slate-50 border border-slate-200 rounded-lg p-1 text-right font-mono font-bold text-xs focus:bg-white focus:outline-none focus:ring-1 focus:ring-brand-500">
+            </td>
+            <td class="px-3 py-2.5 text-right font-mono font-extrabold text-slate-900 item-subtotal">
+                $0.00
+            </td>
+            <td class="px-3 py-2.5 text-center">
+                <button type="button" onclick="eliminarRenglon(this)" class="text-slate-400 hover:text-rose-600 transition-colors p-1">
+                    <i class="bi bi-trash3-fill text-sm"></i>
+                </button>
+            </td>
+        `;
+        container.appendChild(tr);
+        calcularTotales();
+    }
+
+    function eliminarRenglon(btn) {
+        const tr = btn.closest('tr');
+        tr.remove();
+        // Reindexar
+        const rows = document.querySelectorAll('#itemsContainer tr');
+        rows.forEach((r, idx) => {
+            r.querySelector('.item-index').innerText = idx + 1;
+        });
+        calcularTotales();
+    }
+
+    // Cálculo exhaustivo de totales bimonetarios
+    function calcularTotales() {
+        const rows = document.querySelectorAll('#itemsContainer tr');
+        let subtotal_usd = 0;
+
+        rows.forEach(r => {
+            const cant = parseFloat(r.querySelector('input[name="cantidad[]"]').value) || 0;
+            const pu = parseFloat(r.querySelector('input[name="precio_unitario_usd[]"]').value) || 0;
+            const linea = cant * pu;
+            r.querySelector('.item-subtotal').innerText = `$${formatNumberEs(linea, 2)}`;
+            subtotal_usd += linea;
+        });
+
+        const aplica_iva = document.getElementById('aplica_iva').checked;
+        const desc_usd = parseFloat(document.getElementById('descuento_usd').value) || 0;
+        const tasa_bcv = parseFloat(document.getElementById('tasa_bcv').value) || 1;
+
+        let exento_usd = 0;
+        let gravable_usd = 0;
+
+        if (aplica_iva) {
+            gravable_usd = subtotal_usd;
+        } else {
+            exento_usd = subtotal_usd;
+        }
+
+        const base_imponible = aplica_iva ? Math.max(0, gravable_usd - desc_usd) : 0;
+        const iva_usd = aplica_iva ? (base_imponible * 0.16) : 0;
+        const total_usd = Math.max(0, exento_usd + gravable_usd - desc_usd + iva_usd);
+
+        // Bolívares
+        const exento_bs = exento_usd * tasa_bcv;
+        const gravable_bs = gravable_usd * tasa_bcv;
+        const iva_bs = iva_usd * tasa_bcv;
+        const desc_bs = desc_usd * tasa_bcv;
+        const total_bs = total_usd * tasa_bcv;
+
+        // Actualizar visualmente
+        document.getElementById('disp_exento_usd').innerText = `$${formatNumberEs(exento_usd, 2)}`;
+        document.getElementById('disp_gravable_usd').innerText = `$${formatNumberEs(gravable_usd, 2)}`;
+        document.getElementById('disp_iva_usd').innerText = `$${formatNumberEs(iva_usd, 2)}`;
+        document.getElementById('disp_desc_usd').innerText = `-$${formatNumberEs(desc_usd, 2)}`;
+        document.getElementById('disp_total_usd').innerText = `$${formatNumberEs(total_usd, 2)}`;
+
+        document.getElementById('disp_tc_resaltada').innerText = formatNumberEs(tasa_bcv, 4);
+
+        document.getElementById('disp_exento_bs').innerText = `Bs.S ${formatNumberEs(exento_bs, 2)}`;
+        document.getElementById('disp_gravable_bs').innerText = `Bs.S ${formatNumberEs(gravable_bs, 2)}`;
+        document.getElementById('disp_iva_bs').innerText = `Bs.S ${formatNumberEs(iva_bs, 2)}`;
+        document.getElementById('disp_desc_bs').innerText = `-Bs.S ${formatNumberEs(desc_bs, 2)}`;
+        document.getElementById('disp_total_bs').innerText = `Bs.S ${formatNumberEs(total_bs, 2)}`;
+    }
+
+    // Modal Helpers
+    function abrirModal(id) { document.getElementById(id).classList.remove('hidden'); }
+    function cerrarModal(id) { document.getElementById(id).classList.add('hidden'); }
+    function abrirModalProveedor() { abrirModal('modalProveedor'); }
+    function abrirModalProyecto() { abrirModal('modalProyecto'); }
+    function abrirModalItem() { abrirModal('modalItem'); }
+    function abrirModalFirmante() { abrirModal('modalFirmante'); }
+
+    // Guardar nuevo proveedor vía AJAX
+    function guardarProveedorModal() {
+        const razon = document.getElementById('m_prov_razon').value.trim();
+        const rif = document.getElementById('m_prov_rif').value.trim();
+        const ben = document.getElementById('m_prov_beneficiario').value.trim();
+        const bco = document.getElementById('m_prov_banco').value.trim();
+        const cta = document.getElementById('m_prov_cuenta').value.trim();
+
+        if (!razon || !rif || !bco || !cta) {
+            alert("Por favor complete los campos obligatorios del proveedor.");
+            return;
+        }
+
+        const fd = new FormData();
+        fd.append("razon_social", razon);
+        fd.append("rif", rif);
+        fd.append("beneficiario", ben);
+        fd.append("banco", bco);
+        fd.append("num_cuenta", cta);
+
+        fetch("/api/proveedores/nuevo", { method: "POST", body: fd })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success && data.proveedor) {
+                    const sel = document.getElementById('proveedor_id');
+                    const opt = document.createElement('option');
+                    opt.value = data.proveedor.id;
+                    opt.setAttribute('data-rif', data.proveedor.rif);
+                    opt.setAttribute('data-beneficiario', data.proveedor.beneficiario);
+                    opt.setAttribute('data-banco', data.proveedor.banco);
+                    opt.setAttribute('data-cuenta', data.proveedor.num_cuenta);
+                    opt.innerText = `${data.proveedor.razon_social} (RIF: ${data.proveedor.rif})`;
+                    opt.selected = true;
+                    sel.appendChild(opt);
+                    actualizarPreviewProveedor();
+                    cerrarModal('modalProveedor');
+                } else {
+                    alert(data.error || "Error al guardar proveedor.");
+                }
+            })
+            .catch(err => alert("Error de red: " + err));
+    }
+
+    // Guardar nuevo proyecto vía AJAX
+    function guardarProyectoModal() {
+        const cod = document.getElementById('m_proy_codigo').value.trim();
+        const nom = document.getElementById('m_proy_nombre').value.trim();
+        if (!cod || !nom) { alert("Indique código y nombre del proyecto."); return; }
+
+        const fd = new FormData();
+        fd.append("codigo", cod);
+        fd.append("nombre", nom);
+
+        fetch("/api/proyectos/nuevo", { method: "POST", body: fd })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    const sel = document.getElementById('proyecto_id');
+                    const opt = document.createElement('option');
+                    opt.value = data.id;
+                    opt.innerText = `${data.codigo} — ${data.nombre}`;
+                    opt.selected = true;
+                    sel.appendChild(opt);
+                    cerrarModal('modalProyecto');
+                } else {
+                    alert(data.error || "Error al registrar proyecto.");
+                }
+            })
+            .catch(err => alert("Error de red: " + err));
+    }
+
+    // Guardar nuevo ítem vía AJAX y agregarlo directo al formulario
+    function guardarItemModal() {
+        const desc = document.getElementById('m_item_desc').value.trim();
+        const unid = document.getElementById('m_item_unidad').value.trim();
+        const pu = parseFloat(document.getElementById('m_item_precio').value) || 0;
+        if (!desc) { alert("Indique la descripción del ítem."); return; }
+
+        const fd = new FormData();
+        fd.append("descripcion", desc);
+        fd.append("unidad", unid);
+        fd.append("precio_referencial_usd", pu);
+
+        fetch("/api/items/nuevo", { method: "POST", body: fd })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success && data.item) {
+                    agregarRenglon(data.item.descripcion, 1, data.item.unidad, data.item.precio_referencial_usd);
+                    cerrarModal('modalItem');
+                } else {
+                    alert(data.error || "Error al registrar ítem.");
+                }
+            })
+            .catch(err => alert("Error de red: " + err));
+    }
+
+    // Guardar nuevo firmante
+    function guardarFirmanteModal() {
+        const nom = document.getElementById('m_firm_nombre').value.trim();
+        const car = document.getElementById('m_firm_cargo').value.trim();
+        if (!nom) { alert("Indique el nombre del firmante."); return; }
+
+        const fd = new FormData();
+        fd.append("nombre", nom);
+        fd.append("cargo", car);
+
+        fetch("/api/firmantes/nuevo", { method: "POST", body: fd })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success && data.firmante) {
+                    ['firmante_solicitado', 'firmante_revisado'].forEach(id => {
+                        const sel = document.getElementById(id);
+                        const opt = document.createElement('option');
+                        opt.value = data.firmante.nombre;
+                        opt.innerText = `${data.firmante.nombre} — ${data.firmante.cargo}`;
+                        sel.appendChild(opt);
+                    });
+                    cerrarModal('modalFirmante');
+                } else {
+                    alert(data.error || "Error al registrar firmante.");
+                }
+            })
+            .catch(err => alert("Error de red: " + err));
+    }
+
+    // CONTROL ANTI-DUPLICADOS AL ENVIAR FORMULARIO
+    document.getElementById('ordenForm').addEventListener('submit', function(e) {
+        const btn = document.getElementById('btnSubmitForm');
+        if (btn.disabled) {
+            e.preventDefault();
+            return false;
+        }
+        btn.disabled = true;
+        btn.innerHTML = '<i class="bi bi-hourglass-split mr-2 animate-spin"></i> Emitiendo Orden de Compra...';
+    });
+
+    // Carga inicial
+    document.addEventListener("DOMContentLoaded", function() {
+        actualizarPreviewProveedor();
+        // Cargar un ítem inicial de ejemplo idéntico a la plantilla física
+        agregarRenglon("COMPRA DE DRILL 100% ALGODÓN ROJO", 25, "Metros", 5.31);
+        consultarTasaBCV();
+    });
+</script>
+{% endblock %}
