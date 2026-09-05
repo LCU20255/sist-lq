@@ -1038,6 +1038,30 @@ def api_listar_ordenes():
     return jsonify({"success": True, "ordenes": MOCK_ORDENES})
 
 
+@bp.route("/api/ordenes/<orden_id>", methods=["DELETE"])
+def eliminar_orden(orden_id):
+    supabase = getattr(current_app, "supabase", None)
+    if supabase:
+        try:
+            # Eliminar los renglones primero por constraint fk (aunque si hay cascade delete no haría falta, es mejor prevenir)
+            supabase.table("renglones_orden").delete().eq("orden_id", orden_id).execute()
+            # Eliminar la orden
+            res = supabase.table("ordenes_compra").delete().eq("id", orden_id).execute()
+            
+            usuario_actual = session.get("user_nombre", "Loreidy Quiñonez")
+            registrar_movimiento(usuario_actual, "ELIMINAR_ORDEN", "ORDENES", f"Orden eliminada: ID {orden_id}")
+            
+            return jsonify({"success": True})
+        except Exception as e:
+            return jsonify({"success": False, "error": str(e)}), 500
+    else:
+        # Modo Mock (sin base de datos)
+        global MOCK_ORDENES
+        MOCK_ORDENES = [o for o in MOCK_ORDENES if str(o.get("id")) != str(orden_id)]
+        usuario_actual = session.get("user_nombre", "Loreidy Quiñonez")
+        registrar_movimiento(usuario_actual, "ELIMINAR_ORDEN", "ORDENES", f"Orden eliminada (Mock): ID {orden_id}")
+        return jsonify({"success": True})
+
 @bp.route("/api/firmantes/nuevo", methods=["POST"])
 def nuevo_firmante():
     supabase = getattr(current_app, "supabase", None)
@@ -1070,3 +1094,56 @@ def nuevo_firmante():
     MOCK_FIRMANTES.append(firm_data)
     registrar_movimiento(session.get("user_nombre", "Loreidy"), "CREAR_FIRMANTE", "FIRMANTES", f"Firmante registrado (demo): {nombre}")
     return jsonify({"success": True, "firmante": firm_data})
+
+@bp.route("/api/usuarios", methods=["GET"])
+def get_usuarios():
+    # Solo el admin debería poder ver esta lista
+    if session.get("user_rol") != "admin":
+        return jsonify({"success": False, "error": "No tienes permisos"}), 403
+
+    supabase = getattr(current_app, "supabase", None)
+    if supabase:
+        try:
+            res = supabase.table("usuarios").select("id, nombre, email, rol").execute()
+            return jsonify({"success": True, "usuarios": res.data})
+        except Exception as e:
+            return jsonify({"success": False, "error": str(e)}), 500
+    else:
+        # Mock users
+        mock_users = [
+            {"id": "usr-admin-1", "nombre": "Administrador Principal", "email": "admin@nexa.com", "rol": "admin"},
+            {"id": "usr-test-2", "nombre": "Usuario de Prueba", "email": "test@nexa.com", "rol": "usuario"}
+        ]
+        return jsonify({"success": True, "usuarios": mock_users})
+
+@bp.route("/api/usuarios/<user_id>/rol", methods=["PUT"])
+def cambiar_rol_usuario(user_id):
+    if session.get("user_rol") != "admin":
+        return jsonify({"success": False, "error": "No tienes permisos para realizar esta acción"}), 403
+
+    req_data = request.get_json(silent=True)
+    if not req_data or "rol" not in req_data:
+        return jsonify({"success": False, "error": "Falta el rol especificado"}), 400
+        
+    nuevo_rol = req_data["rol"]
+    if nuevo_rol not in ["admin", "usuario"]:
+        return jsonify({"success": False, "error": "Rol inválido"}), 400
+
+    # Evitar quitarse el rol de admin a uno mismo
+    if user_id == session.get("user_id") and nuevo_rol != "admin":
+        return jsonify({"success": False, "error": "No puedes quitarte el rol de administrador a ti mismo"}), 403
+
+    supabase = getattr(current_app, "supabase", None)
+    if supabase:
+        try:
+            res = supabase.table("usuarios").update({"rol": nuevo_rol}).eq("id", user_id).execute()
+            if res.data:
+                usuario_actual = session.get("user_nombre", "Admin")
+                target_user = res.data[0].get("email")
+                registrar_movimiento(usuario_actual, "ACTUALIZAR_ROL", "SEGURIDAD", f"Rol de {target_user} cambiado a {nuevo_rol}")
+                return jsonify({"success": True})
+            return jsonify({"success": False, "error": "Usuario no encontrado"}), 404
+        except Exception as e:
+            return jsonify({"success": False, "error": str(e)}), 500
+    else:
+        return jsonify({"success": True})

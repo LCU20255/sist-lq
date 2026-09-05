@@ -100,11 +100,13 @@
                     Órdenes Emitidas
                 </button>
 
+                {% if session.get('user_rol') == 'admin' %}
                 <button type="button" onclick="abrirVentanaEmergente('modalEmergenteAuditoria')" 
                    class="w-full text-left flex items-center px-4 py-2.5 text-sm font-medium rounded-xl text-brand-100/80 hover:bg-brand-800/60 hover:text-white transition-all">
                     <i class="bi bi-shield-check mr-3 text-base text-brand-300"></i>
                     Auditoría de Movimientos
                 </button>
+                {% endif %}
 
                 <button type="button" onclick="abrirVentanaEmergente('modalEmergenteProveedores')" 
                    class="w-full text-left flex items-center px-4 py-2.5 text-sm font-medium rounded-xl text-brand-100/80 hover:bg-brand-800/60 hover:text-white transition-all">
@@ -123,6 +125,14 @@
                     <i class="bi bi-tags-fill mr-3 text-base text-brand-300"></i>
                     Catálogo de Ítems
                 </button>
+
+                {% if session.get('user_rol') == 'admin' %}
+                <button type="button" onclick="abrirVentanaEmergente('modalEmergenteUsuarios')" 
+                   class="w-full text-left flex items-center px-4 py-2.5 text-sm font-medium rounded-xl text-brand-100/80 hover:bg-brand-800/60 hover:text-white transition-all">
+                    <i class="bi bi-people-fill mr-3 text-base text-brand-300"></i>
+                    Administrar Usuarios
+                </button>
+                {% endif %}
             </nav>
         </div>
 
