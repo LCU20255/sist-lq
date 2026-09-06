@@ -78,11 +78,11 @@
 
             <!-- NAVEGACIÓN PRINCIPAL -->
             <nav class="p-4 space-y-1.5 sidebar-scroll overflow-y-auto max-h-[calc(100vh-140px)]">
-                <a href="{{ url_for('main.dashboard') }}" 
-                   class="flex items-center px-4 py-3 text-sm font-semibold rounded-xl transition-all duration-200 {% if request.endpoint == 'main.dashboard' %}bg-brand-700/80 text-white shadow-md border-l-4 border-brand-300{% else %}text-brand-100/80 hover:bg-brand-800/60 hover:text-white{% endif %}">
+                <button type="button" onclick="switchTab('dashboard')" 
+                   class="w-full text-left flex items-center px-4 py-3 text-sm font-semibold rounded-xl transition-all duration-200 bg-brand-700/80 text-white shadow-md border-l-4 border-brand-300 nav-btn" data-tab="dashboard">
                     <i class="bi bi-grid-1x2-fill mr-3 text-lg text-brand-300"></i>
                     Inicio - Dashboard
-                </a>
+                </button>
 
                 <button type="button" onclick="if(typeof openOffcanvas === 'function'){ openOffcanvas(); } else { window.location.href='{{ url_for('main.dashboard') }}?open_canvas=1'; }" 
                    class="w-full text-left flex items-center px-4 py-3 text-sm font-semibold rounded-xl transition-all duration-200 text-brand-100/80 hover:bg-brand-800/60 hover:text-white">
@@ -94,45 +94,60 @@
                     Gestión y Operaciones
                 </div>
 
-                <button type="button" onclick="abrirVentanaEmergente('modalEmergenteOrdenes')" 
-                   class="w-full text-left flex items-center px-4 py-2.5 text-sm font-medium rounded-xl text-brand-100/80 hover:bg-brand-800/60 hover:text-white transition-all">
+                <button type="button" onclick="switchTab('ordenes')" 
+                   class="w-full text-left flex items-center px-4 py-2.5 text-sm font-medium rounded-xl text-brand-100/80 hover:bg-brand-800/60 hover:text-white transition-all nav-btn" data-tab="ordenes">
                     <i class="bi bi-journal-check mr-3 text-base text-brand-300"></i>
                     Órdenes Emitidas
                 </button>
 
                 {% if session.get('user_rol') == 'admin' %}
-                <button type="button" onclick="abrirVentanaEmergente('modalEmergenteAuditoria')" 
-                   class="w-full text-left flex items-center px-4 py-2.5 text-sm font-medium rounded-xl text-brand-100/80 hover:bg-brand-800/60 hover:text-white transition-all">
+                <button type="button" onclick="switchTab('auditoria')" 
+                   class="w-full text-left flex items-center px-4 py-2.5 text-sm font-medium rounded-xl text-brand-100/80 hover:bg-brand-800/60 hover:text-white transition-all nav-btn" data-tab="auditoria">
                     <i class="bi bi-shield-check mr-3 text-base text-brand-300"></i>
                     Auditoría de Movimientos
                 </button>
                 {% endif %}
 
-                <button type="button" onclick="abrirVentanaEmergente('modalEmergenteProveedores')" 
-                   class="w-full text-left flex items-center px-4 py-2.5 text-sm font-medium rounded-xl text-brand-100/80 hover:bg-brand-800/60 hover:text-white transition-all">
+                <button type="button" onclick="switchTab('proveedores')" 
+                   class="w-full text-left flex items-center px-4 py-2.5 text-sm font-medium rounded-xl text-brand-100/80 hover:bg-brand-800/60 hover:text-white transition-all nav-btn" data-tab="proveedores">
                     <i class="bi bi-buildings-fill mr-3 text-base text-brand-300"></i>
                     Proveedores
                 </button>
 
-                <button type="button" onclick="abrirVentanaEmergente('modalEmergenteProyectos')" 
-                   class="w-full text-left flex items-center px-4 py-2.5 text-sm font-medium rounded-xl text-brand-100/80 hover:bg-brand-800/60 hover:text-white transition-all">
+                <button type="button" onclick="switchTab('proyectos')" 
+                   class="w-full text-left flex items-center px-4 py-2.5 text-sm font-medium rounded-xl text-brand-100/80 hover:bg-brand-800/60 hover:text-white transition-all nav-btn" data-tab="proyectos">
                     <i class="bi bi-briefcase-fill mr-3 text-base text-brand-300"></i>
                     Proyectos
                 </button>
 
-                <button type="button" onclick="abrirVentanaEmergente('modalEmergenteCatalogo')" 
-                   class="w-full text-left flex items-center px-4 py-2.5 text-sm font-medium rounded-xl text-brand-100/80 hover:bg-brand-800/60 hover:text-white transition-all">
+                <button type="button" onclick="switchTab('catalogo')" 
+                   class="w-full text-left flex items-center px-4 py-2.5 text-sm font-medium rounded-xl text-brand-100/80 hover:bg-brand-800/60 hover:text-white transition-all nav-btn" data-tab="catalogo">
                     <i class="bi bi-tags-fill mr-3 text-base text-brand-300"></i>
                     Catálogo de Ítems
                 </button>
 
                 {% if session.get('user_rol') == 'admin' %}
-                <button type="button" onclick="abrirVentanaEmergente('modalEmergenteUsuarios')" 
-                   class="w-full text-left flex items-center px-4 py-2.5 text-sm font-medium rounded-xl text-brand-100/80 hover:bg-brand-800/60 hover:text-white transition-all">
+                <button type="button" onclick="switchTab('usuarios')" 
+                   class="w-full text-left flex items-center px-4 py-2.5 text-sm font-medium rounded-xl text-brand-100/80 hover:bg-brand-800/60 hover:text-white transition-all nav-btn" data-tab="usuarios">
                     <i class="bi bi-people-fill mr-3 text-base text-brand-300"></i>
                     Administrar Usuarios
                 </button>
+                <button type="button" onclick="switchTab('descargas')" 
+                   class="w-full text-left flex items-center px-4 py-2.5 text-sm font-medium rounded-xl text-brand-100/80 hover:bg-brand-800/60 hover:text-white transition-all nav-btn" data-tab="descargas">
+                    <i class="bi bi-cloud-arrow-down-fill mr-3 text-base text-emerald-400"></i>
+                    Centro de Descargas
+                </button>
                 {% endif %}
+
+                <div class="pt-4 pb-2 px-4 text-[11px] font-bold text-indigo-300/70 uppercase tracking-wider">
+                    Asistente Inteligente
+                </div>
+
+                <button type="button" onclick="switchTab('astrid')" 
+                   class="w-full text-left flex items-center px-4 py-2.5 text-sm font-medium rounded-xl text-brand-100/80 hover:bg-brand-800/60 hover:text-white transition-all nav-btn" data-tab="astrid">
+                    <i class="bi bi-robot mr-3 text-base text-indigo-400"></i>
+                    Asistente Astrid (IA)
+                </button>
             </nav>
         </div>
 
@@ -215,6 +230,7 @@
         <!-- MAIN VIEW CONTENT -->
         <main class="flex-1 p-6 md:p-8 max-w-7xl mx-auto w-full overflow-y-auto">
             {% block content %}{% endblock %}
+            {% include "modals_gestion.html" %}
         </main>
 
         <!-- FOOTER GLOBAL -->
@@ -222,9 +238,6 @@
             <strong>SIST-LQ</strong> — Sistema Integral de Facturación y Órdenes de Compra © 2026.
         </footer>
     </div>
-
-    <!-- VENTANAS EMERGENTES (MODALES) DE GESTIÓN Y OPERACIONES -->
-    {% include "modals_gestion.html" %}
 
     <!-- Flatpickr JS -->
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
@@ -239,5 +252,48 @@
         });
     </script>
     {% block extra_scripts %}{% endblock %}
+    <!-- Script de navegación SPA -->
+    <script>
+        function switchTab(tabId) {
+            // Ocultar todas las secciones
+            document.querySelectorAll('.app-section').forEach(el => {
+                el.classList.add('hidden');
+                el.classList.remove('block');
+            });
+            // Mostrar la seleccionada
+            const target = document.getElementById('section-' + tabId);
+            if (target) {
+                target.classList.remove('hidden');
+                target.classList.add('block', 'animate-fade-in');
+            }
+            
+            // Actualizar estado de los botones de la barra lateral
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                if(btn.dataset.tab === tabId) {
+                    btn.classList.add('bg-brand-700/80', 'text-white', 'shadow-md', 'border-l-4', 'border-brand-300');
+                    btn.classList.remove('text-brand-100/80', 'hover:bg-brand-800/60');
+                } else {
+                    btn.classList.remove('bg-brand-700/80', 'text-white', 'shadow-md', 'border-l-4', 'border-brand-300');
+                    btn.classList.add('text-brand-100/80', 'hover:bg-brand-800/60');
+                }
+            });
+
+            // Llamar a las funciones de carga de datos si es necesario
+            if (tabId === 'ordenes' && typeof cargarOrdenesModal === 'function') cargarOrdenesModal();
+            if (tabId === 'proveedores' && typeof cargarProveedoresModal === 'function') cargarProveedoresModal();
+            if (tabId === 'catalogo' && typeof cargarCatalogoModal === 'function') cargarCatalogoModal();
+            if (tabId === 'auditoria' && typeof cargarAuditoriaModal === 'function') cargarAuditoriaModal();
+            if (tabId === 'usuarios' && typeof cargarUsuariosModal === 'function') cargarUsuariosModal();
+            if (tabId === 'proyectos' && typeof cargarProyectosModal === 'function') cargarProyectosModal();
+        }
+
+        // Animación helper
+        document.head.insertAdjacentHTML('beforeend', `
+            <style>
+                @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+                .animate-fade-in { animation: fadeIn 0.3s ease-out forwards; }
+            </style>
+        `);
+    </script>
 </body>
 </html>

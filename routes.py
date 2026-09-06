@@ -250,7 +250,8 @@ def login():
                         session["user_nombre"] = user["nombre"]
                         session["user_email"] = user["email"]
                         session["user_rol"] = user.get("rol", "admin")
-
+                        session["astrid_greet"] = True
+                        session.permanent = True
                         registrar_movimiento(user["nombre"], "LOGIN", "AUTH", f"Inicio de sesión exitoso ({email})")
                         flash(f"¡Bienvenido de nuevo, {user['nombre']}!", "success")
                         return redirect(url_for("main.dashboard"))
@@ -404,8 +405,10 @@ def dashboard():
         dig = "".join(filter(str.isdigit, str(o.get("nro_orden", ""))))
         if dig: max_num = max(max_num, int(dig))
     siguiente_nro_orden = f"{max_num + 1:06d}"
+    astrid_greet = session.pop("astrid_greet", False)
 
     return render_template("dashboard.html",
+                           astrid_greet=astrid_greet,
                            ordenes=ordenes,
                            movimientos=movimientos,
                            proveedores=proveedores,
@@ -1147,3 +1150,202 @@ def cambiar_rol_usuario(user_id):
             return jsonify({"success": False, "error": str(e)}), 500
     else:
         return jsonify({"success": True})
+
+@bp.route("/api/usuarios/<user_id>/password", methods=["PUT"])
+def cambiar_password_usuario(user_id):
+    if session.get("user_rol") != "admin":
+        return jsonify({"success": False, "error": "No tienes permisos"}), 403
+    
+    req_data = request.get_json(silent=True)
+    if not req_data or "password" not in req_data:
+        return jsonify({"success": False, "error": "Falta la contraseña"}), 400
+        
+    new_password = req_data["password"]
+    supabase = getattr(current_app, "supabase", None)
+    if supabase:
+        try:
+            # Requires service_role key to work
+            supabase.auth.admin.update_user_by_id(user_id, {"password": new_password})
+            
+            usuario_actual = session.get("user_nombre", "Admin")
+            registrar_movimiento(usuario_actual, "ACTUALIZAR_CLAVE", "SEGURIDAD", f"Contraseña actualizada para usuario ID {user_id}")
+            return jsonify({"success": True})
+        except Exception as e:
+            return jsonify({"success": False, "error": str(e)}), 500
+    else:
+        return jsonify({"success": True})
+
+import requests
+
+@bp.route("/api/telegram/recuperar", methods=["POST"])
+def telegram_recuperar():
+    if session.get("user_rol") != "admin":
+        return jsonify({"success": False, "error": "Solo admins"}), 403
+    
+    req_data = request.get_json(silent=True)
+    if not req_data or "chat_id" not in req_data or "mensaje" not in req_data:
+        return jsonify({"success": False, "error": "Falta chat_id o mensaje"}), 400
+        
+    bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
+    if not bot_token:
+        return jsonify({"success": False, "error": "Falta TELEGRAM_BOT_TOKEN en el .env"}), 500
+        
+    try:
+        url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+        payload = {
+            "chat_id": req_data["chat_id"],
+            "text": req_data["mensaje"]
+        }
+        r = requests.post(url, json=payload)
+        if r.status_code == 200:
+            return jsonify({"success": True})
+        else:
+            return jsonify({"success": False, "error": r.text}), 400
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@bp.route("/api/astrid", methods=["POST"])
+def chat_astrid():
+    if "user_id" not in session:
+        return jsonify({"success": False, "error": "No autorizado"}), 401
+
+    try:
+        import google.generativeai as genai
+    except ImportError:
+        return jsonify({"success": False, "error": "El módulo de IA no está instalado."}), 500
+
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        return jsonify({"success": False, "error": "Falta configurar GEMINI_API_KEY en el entorno."}), 500
+
+    req_data = request.get_json(silent=True)
+    if not req_data or "prompt" not in req_data:
+        return jsonify({"success": False, "error": "No se proporcionó ningún texto."}), 400
+
+    usuario = session.get("user_nombre", "Loreidy")
+    prompt_usuario = req_data["prompt"]
+
+    sys_prompt = f"Eres Astrid, la asistente virtual super inteligente del sistema Facturador SIST-LQ. Hablas en español venezolano, eres profesional, muy amable y proactiva. El usuario con el que hablas se llama {usuario}. Ayúdalo en lo que necesite referente a facturación, sistema, o cualquier otra duda de negocios."
+
+    try:
+        genai.configure(api_key=api_key)
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        response = model.generate_content([
+            {"role": "user", "parts": [{"text": sys_prompt + "\\n\\nPregunta del usuario: " + prompt_usuario}]}
+        ])
+        
+        return jsonify({"success": True, "respuesta": response.text})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+import csv
+import io
+from flask import Response
+
+@bp.route("/api/exportar/ordenes")
+def exportar_ordenes_raw():
+    if session.get("user_rol") != "admin":
+        return "Acceso denegado", 403
+    supabase = getattr(current_app, "supabase", None)
+    if not supabase: return "Mock Data", 400
+    try:
+        res = supabase.table("ordenes_compra").select("*").execute()
+        if not res.data: return "No data", 404
+        
+        output = io.StringIO()
+        writer = csv.DictWriter(output, fieldnames=res.data[0].keys())
+        writer.writeheader()
+        writer.writerows(res.data)
+        
+        return Response(output.getvalue(), mimetype="text/csv", headers={"Content-Disposition": "attachment;filename=ordenes_raw.csv"})
+    except Exception as e:
+        return str(e), 500
+
+@bp.route("/api/exportar/proveedores")
+def exportar_proveedores_raw():
+    if session.get("user_rol") != "admin":
+        return "Acceso denegado", 403
+    supabase = getattr(current_app, "supabase", None)
+    if not supabase: return "Mock Data", 400
+    try:
+        res = supabase.table("proveedores").select("*").execute()
+        if not res.data: return "No data", 404
+        output = io.StringIO()
+        writer = csv.DictWriter(output, fieldnames=res.data[0].keys())
+        writer.writeheader()
+        writer.writerows(res.data)
+        return Response(output.getvalue(), mimetype="text/csv", headers={"Content-Disposition": "attachment;filename=proveedores_raw.csv"})
+    except Exception as e:
+        return str(e), 500
+
+@bp.route("/api/exportar/auditoria")
+def exportar_auditoria_raw():
+    if session.get("user_rol") != "admin":
+        return "Acceso denegado", 403
+    supabase = getattr(current_app, "supabase", None)
+    if not supabase: return "Mock Data", 400
+    try:
+        res = supabase.table("auditoria").select("*").execute()
+        if not res.data: return "No data", 404
+        output = io.StringIO()
+        writer = csv.DictWriter(output, fieldnames=res.data[0].keys())
+        writer.writeheader()
+        writer.writerows(res.data)
+        return Response(output.getvalue(), mimetype="text/csv", headers={"Content-Disposition": "attachment;filename=auditoria_raw.csv"})
+    except Exception as e:
+        return str(e), 500
+
+@bp.route("/api/proveedores/<rif>/perfil", methods=["GET"])
+def perfil_proveedor(rif):
+    supabase = getattr(current_app, "supabase", None)
+    if supabase:
+        try:
+            # Buscar el proveedor
+            res_prov = supabase.table("proveedores").select("*").eq("rif", rif).execute()
+            if not res_prov.data:
+                return jsonify({"success": False, "error": "Proveedor no encontrado"}), 404
+            
+            proveedor = res_prov.data[0]
+            
+            # Buscar las órdenes emitidas a este proveedor
+            res_ordenes = supabase.table("ordenes_compra").select("id, nro_orden, fecha_emision, total_usd, estado").eq("proveedor_rif", rif).order("fecha_emision", desc=True).execute()
+            
+            ordenes = []
+            if res_ordenes.data:
+                for o in res_ordenes.data:
+                    ordenes.append({
+                        "id": o.get("id"),
+                        "fecha": o.get("fecha_emision")[:10] if o.get("fecha_emision") else "",
+                        "proyecto": "N/A", # Opcional: cargar nombre de proyecto si se requiere
+                        "total_usd": o.get("total_usd"),
+                        "estado": o.get("estado")
+                    })
+            
+            return jsonify({
+                "success": True,
+                "proveedor": proveedor,
+                "ordenes": ordenes
+            })
+        except Exception as e:
+            return jsonify({"success": False, "error": str(e)}), 500
+    else:
+        # Mock para demostración
+        prov = next((p for p in MOCK_PROVEEDORES if p.get("rif") == rif), None)
+        if not prov:
+            return jsonify({"success": False, "error": "Proveedor no encontrado"}), 404
+        
+        ordenes = [o for o in MOCK_ORDENES if o.get("proveedor_rif") == rif]
+        ordenes_fmt = []
+        for o in ordenes:
+            ordenes_fmt.append({
+                "id": o.get("id"),
+                "fecha": o.get("fecha_emision")[:10] if o.get("fecha_emision") else "",
+                "proyecto": "Mock Proyecto",
+                "total_usd": o.get("total_usd"),
+                "estado": o.get("estado")
+            })
+        return jsonify({
+            "success": True,
+            "proveedor": prov,
+            "ordenes": ordenes_fmt
+        })

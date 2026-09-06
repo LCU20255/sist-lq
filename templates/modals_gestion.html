@@ -3,8 +3,8 @@
      ========================================================================= -->
 
 <!-- 1. VENTANA EMERGENTE: ÓRDENES EMITIDAS -->
-<div id="modalEmergenteOrdenes" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4 transition-all duration-300">
-    <div class="bg-white rounded-3xl max-w-5xl w-full max-h-[90vh] shadow-2xl flex flex-col border border-slate-200 overflow-hidden">
+<div id="section-ordenes" class="app-section hidden w-full h-full flex flex-col animate-fade-in" style="min-height: calc(100vh - 120px);">
+    <div class="bg-white rounded-3xl w-full flex-1 shadow-md flex flex-col border border-slate-200 overflow-hidden">
         <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
             <div class="flex items-center space-x-3">
                 <div class="w-10 h-10 rounded-2xl bg-brand-50 text-brand-700 flex items-center justify-center text-xl shadow-sm">
@@ -21,9 +21,7 @@
                 <button onclick="exportarOrdenesCSV()" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-sm transition-colors flex items-center">
                     <i class="bi bi-file-earmark-excel-fill mr-1.5"></i>Exportar
                 </button>
-                <button onclick="cerrarVentanaEmergente('modalEmergenteOrdenes')" class="w-8 h-8 rounded-xl bg-white hover:bg-rose-50 hover:text-rose-600 flex items-center justify-center text-slate-400 transition-colors">
-                    <i class="bi bi-x-lg"></i>
-                </button>
+                
             </div>
         </div>
 
@@ -50,8 +48,8 @@
 </div>
 
 <!-- 2. VENTANA EMERGENTE: AUDITORÍA DE MOVIMIENTOS -->
-<div id="modalEmergenteAuditoria" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4 transition-all duration-300">
-    <div class="bg-white rounded-3xl max-w-4xl w-full max-h-[85vh] shadow-2xl flex flex-col border border-slate-200 overflow-hidden">
+<div id="section-auditoria" class="app-section hidden w-full h-full flex flex-col animate-fade-in" style="min-height: calc(100vh - 120px);">
+    <div class="bg-white rounded-3xl w-full flex-1 shadow-md flex flex-col border border-slate-200 overflow-hidden">
         <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
             <div class="flex items-center space-x-3">
                 <div class="w-10 h-10 rounded-2xl bg-indigo-50 text-indigo-700 flex items-center justify-center text-xl shadow-sm">
@@ -62,9 +60,7 @@
                     <p class="text-xs text-slate-400 font-medium">Registro cronológico inmutable de acciones realizadas en el sistema</p>
                 </div>
             </div>
-            <button onclick="cerrarVentanaEmergente('modalEmergenteAuditoria')" class="w-8 h-8 rounded-xl bg-white hover:bg-rose-50 hover:text-rose-600 flex items-center justify-center text-slate-400 transition-colors">
-                <i class="bi bi-x-lg"></i>
-            </button>
+            
         </div>
 
         <div class="flex-1 overflow-y-auto p-6">
@@ -87,8 +83,8 @@
 </div>
 
 <!-- 3. VENTANA EMERGENTE: GESTIÓN DE PROVEEDORES -->
-<div id="modalEmergenteProveedores" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4 transition-all duration-300">
-    <div class="bg-white rounded-3xl max-w-4xl w-full max-h-[90vh] shadow-2xl flex flex-col border border-slate-200 overflow-hidden">
+<div id="section-proveedores" class="app-section hidden w-full h-full flex flex-col animate-fade-in" style="min-height: calc(100vh - 120px);">
+    <div class="bg-white rounded-3xl w-full flex-1 shadow-md flex flex-col border border-slate-200 overflow-hidden">
         <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
             <div class="flex items-center space-x-3">
                 <div class="w-10 h-10 rounded-2xl bg-teal-50 text-teal-700 flex items-center justify-center text-xl shadow-sm">
@@ -104,9 +100,7 @@
                         class="px-3.5 py-1.5 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-xs font-bold flex items-center shadow-sm">
                     <i class="bi bi-plus-lg mr-1.5"></i>Nuevo Proveedor
                 </button>
-                <button onclick="cerrarVentanaEmergente('modalEmergenteProveedores')" class="w-8 h-8 rounded-xl bg-white hover:bg-rose-50 hover:text-rose-600 flex items-center justify-center text-slate-400 transition-colors">
-                    <i class="bi bi-x-lg"></i>
-                </button>
+                
             </div>
         </div>
 
@@ -176,7 +170,7 @@
                         <th class="px-4 py-3">Razón Social</th>
                         <th class="px-4 py-3 font-mono">RIF</th>
                         <th class="px-4 py-3">Banco</th>
-                        <th class="px-4 py-3 font-mono">Nro. de Cuenta</th>
+                        <th class="px-4 py-3 font-mono">Nro. de Cuenta</th>\n                        <th class="px-4 py-3 text-center">Acciones</th>
                     </tr>
                 </thead>
                 <tbody id="bodyModalProveedores" class="divide-y divide-slate-100">
@@ -188,8 +182,8 @@
 </div>
 
 <!-- 4. VENTANA EMERGENTE: GESTIÓN DE PROYECTOS -->
-<div id="modalEmergenteProyectos" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4 transition-all duration-300">
-    <div class="bg-white rounded-3xl max-w-3xl w-full max-h-[85vh] shadow-2xl flex flex-col border border-slate-200 overflow-hidden">
+<div id="section-proyectos" class="app-section hidden w-full h-full flex flex-col animate-fade-in" style="min-height: calc(100vh - 120px);">
+    <div class="bg-white rounded-3xl w-full flex-1 shadow-md flex flex-col border border-slate-200 overflow-hidden">
         <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
             <div class="flex items-center space-x-3">
                 <div class="w-10 h-10 rounded-2xl bg-amber-50 text-amber-700 flex items-center justify-center text-xl shadow-sm">
@@ -205,9 +199,7 @@
                         class="px-3.5 py-1.5 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-xs font-bold flex items-center shadow-sm">
                     <i class="bi bi-plus-lg mr-1.5"></i>Nuevo Proyecto
                 </button>
-                <button onclick="cerrarVentanaEmergente('modalEmergenteProyectos')" class="w-8 h-8 rounded-xl bg-white hover:bg-rose-50 hover:text-rose-600 flex items-center justify-center text-slate-400 transition-colors">
-                    <i class="bi bi-x-lg"></i>
-                </button>
+                
             </div>
         </div>
 
@@ -252,8 +244,8 @@
 </div>
 
 <!-- 5. VENTANA EMERGENTE: CATÁLOGO DE ÍTEMS -->
-<div id="modalEmergenteCatalogo" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4 transition-all duration-300">
-    <div class="bg-white rounded-3xl max-w-4xl w-full max-h-[85vh] shadow-2xl flex flex-col border border-slate-200 overflow-hidden">
+<div id="section-catalogo" class="app-section hidden w-full h-full flex flex-col animate-fade-in" style="min-height: calc(100vh - 120px);">
+    <div class="bg-white rounded-3xl w-full flex-1 shadow-md flex flex-col border border-slate-200 overflow-hidden">
         <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
             <div class="flex items-center space-x-3">
                 <div class="w-10 h-10 rounded-2xl bg-blue-50 text-blue-700 flex items-center justify-center text-xl shadow-sm">
@@ -269,9 +261,7 @@
                         class="px-3.5 py-1.5 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-xs font-bold flex items-center shadow-sm">
                     <i class="bi bi-plus-lg mr-1.5"></i>Nuevo Ítem
                 </button>
-                <button onclick="cerrarVentanaEmergente('modalEmergenteCatalogo')" class="w-8 h-8 rounded-xl bg-white hover:bg-rose-50 hover:text-rose-600 flex items-center justify-center text-slate-400 transition-colors">
-                    <i class="bi bi-x-lg"></i>
-                </button>
+                
             </div>
         </div>
 
@@ -329,8 +319,8 @@
 </div>
 
 <!-- 6. VENTANA EMERGENTE: GESTIÓN DE USUARIOS (ADMIN) -->
-<div id="modalEmergenteUsuarios" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4 transition-all duration-300">
-    <div class="bg-white rounded-3xl max-w-4xl w-full max-h-[85vh] shadow-2xl flex flex-col border border-slate-200 overflow-hidden">
+<div id="section-usuarios" class="app-section hidden w-full h-full flex flex-col animate-fade-in" style="min-height: calc(100vh - 120px);">
+    <div class="bg-white rounded-3xl w-full flex-1 shadow-md flex flex-col border border-slate-200 overflow-hidden">
         <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
             <div class="flex items-center space-x-3">
                 <div class="w-10 h-10 rounded-2xl bg-purple-50 text-purple-700 flex items-center justify-center text-xl shadow-sm">
@@ -341,9 +331,7 @@
                     <p class="text-xs text-slate-400 font-medium">Asigna roles de sistema (admin vs usuario)</p>
                 </div>
             </div>
-            <button onclick="cerrarVentanaEmergente('modalEmergenteUsuarios')" class="w-8 h-8 rounded-xl bg-white hover:bg-rose-50 hover:text-rose-600 flex items-center justify-center text-slate-400 transition-colors">
-                <i class="bi bi-x-lg"></i>
-            </button>
+            
         </div>
 
         <div class="flex-1 overflow-y-auto p-6">
@@ -594,6 +582,9 @@
                     <td class="px-4 py-3 font-mono font-bold text-slate-600">${p.rif}</td>
                     <td class="px-4 py-3 font-medium text-slate-700">${p.banco}</td>
                     <td class="px-4 py-3 font-mono text-slate-600">${p.num_cuenta}</td>
+                    <td class="px-4 py-3 text-center">
+                        <button onclick="cargarPerfilProveedor('${p.rif}')" class="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold rounded-lg text-xs transition-colors">Ver Perfil</button>
+                    </td>
                 </tr>
             `).join('');
         } catch (e) {
@@ -817,6 +808,10 @@
                             <option value="admin" ${u.rol === 'admin' ? 'selected' : ''}>Administrador</option>
                         </select>
                     </td>
+                    <td class="px-4 py-3 text-center space-x-2">
+                        <button onclick="cambiarClaveUsuario('${u.id}')" title="Cambiar Contraseña" class="px-2 py-1.5 bg-amber-100 hover:bg-amber-200 text-amber-700 font-bold rounded-lg transition-colors"><i class="bi bi-key-fill"></i></button>
+                        <button onclick="recuperarTelegram('${u.id}')" title="Enviar Clave a Telegram" class="px-2 py-1.5 bg-sky-100 hover:bg-sky-200 text-sky-700 font-bold rounded-lg transition-colors"><i class="bi bi-telegram"></i></button>
+                    </td>
                 </tr>
             `).join('');
         } catch (e) {
@@ -845,4 +840,213 @@
             cargarUsuariosModal();
         }
     }
+
+    async function cambiarClaveUsuario(userId) {
+        const { value: nuevaClave } = await Swal.fire({
+            title: 'Nueva Contraseña',
+            input: 'password',
+            inputPlaceholder: 'Ingresa la nueva contraseña',
+            showCancelButton: true
+        });
+        
+        if (nuevaClave) {
+            try {
+                const res = await fetch(`/api/usuarios/${userId}/password`, {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({password: nuevaClave})
+                });
+                const data = await res.json();
+                if(res.ok && data.success) {
+                    Swal.fire('¡Éxito!', 'Contraseña cambiada exitosamente.', 'success');
+                } else {
+                    Swal.fire('Error', data.error || 'Fallo al cambiar la contraseña.', 'error');
+                }
+            } catch(e) {
+                Swal.fire('Error', 'Error de conexión', 'error');
+            }
+        }
+    }
+
+    async function recuperarTelegram(userId) {
+        const { value: chatData } = await Swal.fire({
+            title: 'Enviar Clave vía Telegram',
+            html: `
+                <input id="swal-chatid" class="swal2-input" placeholder="Chat ID de Telegram">
+                <input id="swal-mensaje" class="swal2-input" placeholder="Mensaje / Clave temporal">
+            `,
+            focusConfirm: false,
+            preConfirm: () => {
+                return {
+                    chat_id: document.getElementById('swal-chatid').value,
+                    mensaje: document.getElementById('swal-mensaje').value
+                }
+            }
+        });
+        
+        if (chatData && chatData.chat_id) {
+            try {
+                const res = await fetch(`/api/telegram/recuperar`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(chatData)
+                });
+                const data = await res.json();
+                if(res.ok && data.success) {
+                    Swal.fire('Enviado', 'Mensaje de Telegram enviado exitosamente.', 'success');
+                } else {
+                    Swal.fire('Error', data.error || 'Fallo al enviar mensaje.', 'error');
+                }
+            } catch(e) {
+                Swal.fire('Error', 'Error de conexión', 'error');
+            }
+        }
+    }
 </script>
+
+<!-- =========================================================================
+     ASTRID AI - ASISTENTE INTELIGENTE
+     ========================================================================= -->
+<div id="section-astrid" class="app-section hidden w-full h-full flex flex-col animate-fade-in" style="min-height: calc(100vh - 120px);">
+    <div class="bg-white rounded-3xl w-full flex-1 shadow-md flex flex-col border border-slate-200 overflow-hidden">
+        <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-indigo-50 to-purple-50">
+            <div class="flex items-center space-x-3">
+                <div class="w-12 h-12 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 text-white flex items-center justify-center text-2xl shadow-lg">
+                    <i class="bi bi-robot"></i>
+                </div>
+                <div>
+                    <h3 class="text-lg font-black text-slate-900">Astrid <span class="text-xs font-bold px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded-full ml-2">IA Gemini</span></h3>
+                    <p class="text-xs text-slate-500 font-medium">Tu asistente inteligente corporativa</p>
+                </div>
+            </div>
+        </div>
+        <div class="flex-1 overflow-y-auto p-6 bg-slate-50 flex flex-col gap-4" id="astrid-chat-container">
+            <!-- Chat messages go here -->
+            <div class="flex items-start gap-3">
+                <div class="w-8 h-8 rounded-full bg-indigo-500 flex-shrink-0 flex items-center justify-center text-white text-xs"><i class="bi bi-robot"></i></div>
+                <div class="bg-white border border-slate-200 rounded-2xl rounded-tl-none px-4 py-3 text-sm text-slate-700 shadow-sm max-w-[80%]">
+                    Hola! Soy Astrid, tu asistente de Inteligencia Artificial. En qu te puedo ayudar hoy?
+                </div>
+            </div>
+        </div>
+        <div class="p-4 bg-white border-t border-slate-200 flex items-center gap-2">
+            <button type="button" id="btn-astrid-mic" class="w-12 h-12 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center text-xl transition-all" onclick="iniciarDictadoAstrid()">
+                <i class="bi bi-mic-fill"></i>
+            </button>
+            <input type="text" id="astrid-input" placeholder="Escribe tu consulta para Astrid..." class="flex-1 bg-slate-50 border border-slate-200 px-4 py-3 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 text-sm" onkeypress="if(event.key === 'Enter') enviarMensajeAstrid()">
+            <button type="button" class="w-12 h-12 rounded-full bg-indigo-600 hover:bg-indigo-700 text-white flex items-center justify-center text-xl transition-all shadow-md" onclick="enviarMensajeAstrid()">
+                <i class="bi bi-send-fill"></i>
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- =========================================================================
+     PERFIL DE PROVEEDOR
+     ========================================================================= -->
+<div id="section-perfil-proveedor" class="app-section hidden w-full h-full flex flex-col animate-fade-in" style="min-height: calc(100vh - 120px);">
+    <div class="bg-white rounded-3xl w-full flex-1 shadow-md flex flex-col border border-slate-200 overflow-hidden">
+        <div class="px-6 py-4 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between bg-slate-50 gap-4">
+            <div class="flex items-center space-x-4">
+                <button type="button" onclick="switchTab('proveedores')" class="w-10 h-10 rounded-full bg-slate-200 hover:bg-slate-300 flex items-center justify-center text-slate-700 transition-colors">
+                    <i class="bi bi-arrow-left"></i>
+                </button>
+                <div class="w-12 h-12 rounded-2xl bg-teal-50 text-teal-700 flex items-center justify-center text-2xl shadow-sm">
+                    <i class="bi bi-building"></i>
+                </div>
+                <div>
+                    <h3 class="text-lg font-black text-slate-900" id="perfil_prov_nombre">Cargando...</h3>
+                    <p class="text-xs text-slate-500 font-bold">RIF: <span id="perfil_prov_rif">...</span> | Banco: <span id="perfil_prov_banco">...</span></p>
+                </div>
+            </div>
+            <div class="flex items-center gap-3">
+                <button type="button" id="btn-editar-perfil-prov" class="px-4 py-2 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded-xl text-xs font-bold transition-colors">
+                    <i class="bi bi-pencil-square mr-2"></i>Editar Datos
+                </button>
+            </div>
+        </div>
+        <div class="flex-1 overflow-y-auto p-6 bg-slate-50">
+            <!-- Mtricas -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                <div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
+                    <p class="text-[10px] uppercase font-bold text-slate-400">Total rdenes Emitidas</p>
+                    <h4 class="text-2xl font-black text-slate-900 mt-1" id="perfil_total_ordenes">0</h4>
+                </div>
+                <div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
+                    <p class="text-[10px] uppercase font-bold text-slate-400">Volumen Facturado USD</p>
+                    <h4 class="text-2xl font-black text-emerald-700 mt-1" id="perfil_total_usd">.00</h4>
+                </div>
+                <div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
+                    <p class="text-[10px] uppercase font-bold text-slate-400">ltima Actividad</p>
+                    <h4 class="text-base font-bold text-slate-700 mt-1" id="perfil_ultima_fecha">-</h4>
+                </div>
+            </div>
+            <!-- Tabla de rdenes -->
+            <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+                <div class="px-4 py-3 border-b border-slate-100 bg-slate-50/50">
+                    <h4 class="text-sm font-bold text-slate-800"><i class="bi bi-journal-check mr-2 text-brand-500"></i>Historial de rdenes</h4>
+                </div>
+                <table class="w-full text-left text-xs">
+                    <thead class="bg-slate-50 text-slate-500 uppercase font-bold text-[10px] border-b">
+                        <tr>
+                            <th class="px-4 py-3">Nro. Orden</th>
+                            <th class="px-4 py-3">Fecha</th>
+                            <th class="px-4 py-3">Proyecto</th>
+                            <th class="px-4 py-3 text-right">Total USD</th>
+                            <th class="px-4 py-3 text-center">Accin</th>
+                        </tr>
+                    </thead>
+                    <tbody id="bodyPerfilOrdenes" class="divide-y divide-slate-100">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- =========================================================================
+     CENTRO DE DESCARGAS / REPORTES
+     ========================================================================= -->
+<div id="section-descargas" class="app-section hidden w-full h-full flex flex-col animate-fade-in" style="min-height: calc(100vh - 120px);">
+    <div class="bg-white rounded-3xl w-full flex-1 shadow-md flex flex-col border border-slate-200 overflow-hidden">
+        <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-700 flex items-center justify-center text-xl shadow-sm">
+                    <i class="bi bi-cloud-arrow-down-fill"></i>
+                </div>
+                <div>
+                    <h3 class="text-base font-black text-slate-900">Centro de Descargas (Raw Data)</h3>
+                    <p class="text-xs text-slate-400 font-medium">Descarga la base de datos cruda en CSV para anlisis en Excel o PowerBI</p>
+                </div>
+            </div>
+        </div>
+        <div class="flex-1 overflow-y-auto p-6 bg-slate-50">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
+                    <div>
+                        <div class="w-12 h-12 rounded-xl bg-brand-50 text-brand-600 flex items-center justify-center text-2xl mb-3"><i class="bi bi-journal-check"></i></div>
+                        <h4 class="text-sm font-bold text-slate-900">rdenes de Compra</h4>
+                        <p class="text-[11px] text-slate-500 mt-1 mb-4">Data completa de rdenes emitidas: Fechas, montos, tasas de cambio y estado.</p>
+                    </div>
+                    <a href="/api/exportar/ordenes" target="_blank" class="w-full px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-center font-bold text-xs rounded-xl transition-colors"><i class="bi bi-download mr-1.5"></i>Descargar CSV</a>
+                </div>
+                <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
+                    <div>
+                        <div class="w-12 h-12 rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center text-2xl mb-3"><i class="bi bi-buildings"></i></div>
+                        <h4 class="text-sm font-bold text-slate-900">Proveedores</h4>
+                        <p class="text-[11px] text-slate-500 mt-1 mb-4">Directorio completo con datos fiscales y bancarios.</p>
+                    </div>
+                    <a href="/api/exportar/proveedores" target="_blank" class="w-full px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-center font-bold text-xs rounded-xl transition-colors"><i class="bi bi-download mr-1.5"></i>Descargar CSV</a>
+                </div>
+                <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
+                    <div>
+                        <div class="w-12 h-12 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center text-2xl mb-3"><i class="bi bi-shield-check"></i></div>
+                        <h4 class="text-sm font-bold text-slate-900">Auditora</h4>
+                        <p class="text-[11px] text-slate-500 mt-1 mb-4">Registro de movimientos y acciones de todos los usuarios.</p>
+                    </div>
+                    <a href="/api/exportar/auditoria" target="_blank" class="w-full px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-center font-bold text-xs rounded-xl transition-colors"><i class="bi bi-download mr-1.5"></i>Descargar CSV</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

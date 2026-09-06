@@ -28,3 +28,5 @@ gunicorn>=21.2.0
 
 # Waitress para servidores Windows / On-Premise
 waitress>=3.0.0
+
+google-generativeai>=0.4.1
