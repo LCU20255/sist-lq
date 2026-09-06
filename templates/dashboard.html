@@ -1,34 +1,14 @@
 {% extends "layout.html" %}
 
-{% block title %}Dashboard - SIST-LQ
-
-\n
-
-
-
-\n
-{% endblock %}\n{% block page_title %}Panel de Control Principal
-
-\n
-
-
-
-
-\n
-{% endblock %}\n{% block header_actions %}
+{% block title %}Dashboard - SIST-LQ{% endblock %}
+{% block page_title %}Panel de Control Principal{% endblock %}
+{% block header_actions %}
 <button type="button" onclick="openOffcanvas()" 
         class="inline-flex items-center px-5 py-2.5 bg-gradient-to-r from-teal-600 to-brand-700 hover:from-teal-700 hover:to-brand-800 text-white text-xs font-extrabold rounded-2xl shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all">
     <i class="bi bi-plus-lg mr-2 text-base"></i>Nueva Orden de Compra
 </button>
-
-
-\n
-
-
-
-
-\n
-{% endblock %}\n{% block content %}
+{% endblock %}
+{% block content %}
 <div id="section-dashboard" class="app-section block">
 <div class="space-y-8 pb-16">
 
@@ -973,13 +953,9 @@
 
 
 
-\n
+{% endblock %}
 
-
-
-
-\n
-{% endblock %}\n{% block extra_scripts %}
+{% block extra_scripts %}
 
 <script>
     document.addEventListener('DOMContentLoaded', () => {
@@ -1655,8 +1631,7 @@ async function enviarMensajeAstrid() {
         if(document.getElementById(loaderId)) document.getElementById(loaderId).remove();
         
         if(data.success) {
-            chatContainer.innerHTML += `<div class="flex items-start gap-3"><div class="w-8 h-8 rounded-full bg-indigo-500 flex-shrink-0 flex items-center justify-center text-white text-xs"><i class="bi bi-robot"></i></div><div class="bg-white border border-slate-200 rounded-2xl rounded-tl-none px-4 py-3 text-sm text-slate-700 shadow-sm max-w-[80%]">${data.respuesta.replace(/
-/g, '<br>')}</div></div>`;
+            chatContainer.innerHTML += `<div class="flex items-start gap-3"><div class="w-8 h-8 rounded-full bg-indigo-500 flex-shrink-0 flex items-center justify-center text-white text-xs"><i class="bi bi-robot"></i></div><div class="bg-white border border-slate-200 rounded-2xl rounded-tl-none px-4 py-3 text-sm text-slate-700 shadow-sm max-w-[80%]">${(data.respuesta || '').replaceAll('\n', '<br>')}</div></div>`;
             hablarAstrid(data.respuesta, data.audio_b64);
         } else {
             chatContainer.innerHTML += `<div class="flex items-start gap-3"><div class="w-8 h-8 rounded-full bg-rose-500 flex-shrink-0 flex items-center justify-center text-white text-xs"><i class="bi bi-exclamation-triangle"></i></div><div class="bg-rose-50 border border-rose-200 rounded-2xl rounded-tl-none px-4 py-3 text-sm text-rose-700 shadow-sm max-w-[80%]">Error: ${data.error}</div></div>`;

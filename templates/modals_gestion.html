@@ -170,7 +170,8 @@
                         <th class="px-4 py-3">Razón Social</th>
                         <th class="px-4 py-3 font-mono">RIF</th>
                         <th class="px-4 py-3">Banco</th>
-                        <th class="px-4 py-3 font-mono">Nro. de Cuenta</th>\n                        <th class="px-4 py-3 text-center">Acciones</th>
+                        <th class="px-4 py-3 font-mono">Nro. de Cuenta</th>
+                        <th class="px-4 py-3 text-center">Acciones</th>
                     </tr>
                 </thead>
                 <tbody id="bodyModalProveedores" class="divide-y divide-slate-100">
@@ -906,14 +907,19 @@
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify(chatData)
                 });
-                const data = await res.json();
+                let data = {};
+                try {
+                    data = await res.json();
+                } catch(err) {
+                    data = { error: `Servidor retornó error HTTP ${res.status} (${res.statusText || 'Error Interno'})` };
+                }
                 if(res.ok && data.success) {
                     Swal.fire('Enviado', 'Mensaje de Telegram enviado exitosamente.', 'success');
                 } else {
-                    Swal.fire('Error', data.error || 'Fallo al enviar mensaje.', 'error');
+                    Swal.fire('Error al enviar', data.error || 'Fallo al enviar mensaje.', 'error');
                 }
             } catch(e) {
-                Swal.fire('Error', 'Error de conexión', 'error');
+                Swal.fire('Error', 'No se pudo conectar con el servidor: ' + e.message, 'error');
             }
         }
     }

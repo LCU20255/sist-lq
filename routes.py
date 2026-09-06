@@ -1,3 +1,4 @@
+import os
 import datetime
 import re
 import requests
@@ -1180,43 +1181,47 @@ import requests
 @bp.route("/api/telegram/recuperar", methods=["POST"])
 def telegram_recuperar():
     if session.get("user_rol") != "admin":
-        return jsonify({"success": False, "error": "Solo admins"}), 403
+        return jsonify({"success": False, "error": "Solo administradores pueden enviar contraseñas por Telegram."}), 403
     
     req_data = request.get_json(silent=True)
     if not req_data or "chat_id" not in req_data or "mensaje" not in req_data:
-        return jsonify({"success": False, "error": "Falta chat_id o mensaje"}), 400
+        return jsonify({"success": False, "error": "Falta el Chat ID o el mensaje a enviar."}), 400
         
     bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
     if not bot_token:
-        return jsonify({"success": False, "error": "Falta TELEGRAM_BOT_TOKEN en el .env"}), 500
+        return jsonify({"success": False, "error": "Falta configurar TELEGRAM_BOT_TOKEN en las variables de entorno (.env o Render)."}), 400
         
     try:
         url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
         payload = {
-            "chat_id": req_data["chat_id"],
+            "chat_id": str(req_data["chat_id"]).strip(),
             "text": req_data["mensaje"]
         }
-        r = requests.post(url, json=payload)
+        r = requests.post(url, json=payload, timeout=10)
         if r.status_code == 200:
             return jsonify({"success": True})
         else:
-            return jsonify({"success": False, "error": r.text}), 400
+            try:
+                err_desc = r.json().get("description", r.text)
+            except Exception:
+                err_desc = r.text
+            return jsonify({"success": False, "error": f"Error Telegram: {err_desc}"}), 400
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": f"Error conectando con Telegram: {str(e)}"}), 500
 
 @bp.route("/api/astrid", methods=["POST"])
 def chat_astrid():
     if "user_id" not in session:
-        return jsonify({"success": False, "error": "No autorizado"}), 401
+        return jsonify({"success": False, "error": "No autorizado. Inicie sesión."}), 401
 
     try:
         from google import genai
     except ImportError:
-        return jsonify({"success": False, "error": "El módulo google-genai no está instalado."}), 500
+        return jsonify({"success": False, "error": "El módulo google-genai no está instalado en el servidor."}), 500
 
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
-        return jsonify({"success": False, "error": "Falta configurar GEMINI_API_KEY en el entorno."}), 500
+        return jsonify({"success": False, "error": "Falta configurar GEMINI_API_KEY en las variables de entorno (.env o Render)."}), 500
 
     req_data = request.get_json(silent=True)
     if not req_data or "prompt" not in req_data:
@@ -1228,12 +1233,12 @@ def chat_astrid():
     sys_prompt = f"Eres Astrid, la asistente virtual super inteligente del sistema Facturador SIST-LQ. Hablas en español venezolano, eres profesional, muy amable y proactiva. El usuario con el que hablas se llama {usuario}. Ayúdalo en lo que necesite referente a facturación, sistema, o cualquier otra duda de negocios."
 
     try:
-        client = genai.Client()
+        client = genai.Client(api_key=api_key)
         
         # 1. Generar texto
         transcript_interaction = client.interactions.create(
             model="gemini-3.8-flash",
-            input=sys_prompt + "\\n\\nPregunta del usuario: " + prompt_usuario
+            input=sys_prompt + "\n\nPregunta del usuario: " + prompt_usuario
         )
         respuesta_texto = transcript_interaction.output_text
         
