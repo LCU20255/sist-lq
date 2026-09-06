@@ -1,52 +1,34 @@
 {% extends "layout.html" %}
 
 {% block title %}Dashboard - SIST-LQ
-<script>
-    document.addEventListener('DOMContentLoaded', () => {
-        const astridGreet = {{ astrid_greet | tojson | default('false') }};
-        if(astridGreet && typeof hablarAstrid === 'function') {
-            const nombre = '{{ session.get("user_nombre", "administrador") }}';
-            setTimeout(() => {
-                hablarAstrid("Bienvenido " + nombre + ", soy Astrid. Todos los sistemas están en línea y a tu disposición.");
-            }, 1000); // 1 sec delay to ensure voices are loaded
-        }
-    });
-</script>
-\n{% endblock %}
-{% block page_title %}Panel de Control Principal
-<script>
-    document.addEventListener('DOMContentLoaded', () => {
-        const astridGreet = {{ astrid_greet | tojson | default('false') }};
-        if(astridGreet && typeof hablarAstrid === 'function') {
-            const nombre = '{{ session.get("user_nombre", "administrador") }}';
-            setTimeout(() => {
-                hablarAstrid("Bienvenido " + nombre + ", soy Astrid. Todos los sistemas están en línea y a tu disposición.");
-            }, 1000); // 1 sec delay to ensure voices are loaded
-        }
-    });
-</script>
-\n{% endblock %}
 
-{% block header_actions %}
+\n
+
+
+
+\n
+{% endblock %}\n{% block page_title %}Panel de Control Principal
+
+\n
+
+
+
+
+\n
+{% endblock %}\n{% block header_actions %}
 <button type="button" onclick="openOffcanvas()" 
         class="inline-flex items-center px-5 py-2.5 bg-gradient-to-r from-teal-600 to-brand-700 hover:from-teal-700 hover:to-brand-800 text-white text-xs font-extrabold rounded-2xl shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all">
     <i class="bi bi-plus-lg mr-2 text-base"></i>Nueva Orden de Compra
 </button>
 
-<script>
-    document.addEventListener('DOMContentLoaded', () => {
-        const astridGreet = {{ astrid_greet | tojson | default('false') }};
-        if(astridGreet && typeof hablarAstrid === 'function') {
-            const nombre = '{{ session.get("user_nombre", "administrador") }}';
-            setTimeout(() => {
-                hablarAstrid("Bienvenido " + nombre + ", soy Astrid. Todos los sistemas están en línea y a tu disposición.");
-            }, 1000); // 1 sec delay to ensure voices are loaded
-        }
-    });
-</script>
-\n{% endblock %}
 
-{% block content %}
+\n
+
+
+
+
+\n
+{% endblock %}\n{% block content %}
 <div id="section-dashboard" class="app-section block">
 <div class="space-y-8 pb-16">
 
@@ -990,21 +972,29 @@
 </div>
 
 
+
+\n
+
+
+
+
+\n
+{% endblock %}\n{% block extra_scripts %}
+
 <script>
     document.addEventListener('DOMContentLoaded', () => {
-        const astridGreet = {{ astrid_greet | tojson | default('false') }};
+        const astridGreet = {{ astrid_greet | default(false) | tojson }};
         if(astridGreet && typeof hablarAstrid === 'function') {
             const nombre = '{{ session.get("user_nombre", "administrador") }}';
             setTimeout(() => {
                 hablarAstrid("Bienvenido " + nombre + ", soy Astrid. Todos los sistemas están en línea y a tu disposición.");
-            }, 1000); // 1 sec delay to ensure voices are loaded
+            }, 1000);
         }
     });
 </script>
-\n{% endblock %}
 
-{% block extra_scripts %}
 <script>
+
     // =========================================================================
     // CONTROL DEL CANVAS / OFFCANVAS
     // =========================================================================
@@ -1634,22 +1624,11 @@
             }
         });
     }
+
 </script>
 
 <script>
-    document.addEventListener('DOMContentLoaded', () => {
-        const astridGreet = {{ astrid_greet | tojson | default('false') }};
-        if(astridGreet && typeof hablarAstrid === 'function') {
-            const nombre = '{{ session.get("user_nombre", "administrador") }}';
-            setTimeout(() => {
-                hablarAstrid("Bienvenido " + nombre + ", soy Astrid. Todos los sistemas están en línea y a tu disposición.");
-            }, 1000); // 1 sec delay to ensure voices are loaded
-        }
-    });
-</script>
-\n{% endblock %}
 
-<script>
 let strNombreUsuario = '{{ session.get("user_nombre", "Loreidy") }}';
 async function enviarMensajeAstrid() {
     const input = document.getElementById('astrid-input');
@@ -1723,9 +1702,11 @@ function iniciarDictadoAstrid() {
     };
     recognition.start();
 }
+
 </script>
 
 <script>
+
 async function cargarPerfilProveedor(rif) {
     switchTab('perfil-proveedor');
     document.getElementById('perfil_prov_nombre').innerText = 'Cargando...';
@@ -1775,4 +1756,6 @@ async function cargarPerfilProveedor(rif) {
         switchTab('proveedores');
     }
 }
+
 </script>
+{% endblock %}

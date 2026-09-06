@@ -1047,7 +1047,7 @@ def eliminar_orden(orden_id):
     if supabase:
         try:
             # Eliminar los renglones primero por constraint fk (aunque si hay cascade delete no haría falta, es mejor prevenir)
-            supabase.table("renglones_orden").delete().eq("orden_id", orden_id).execute()
+            supabase.table("orden_detalles").delete().eq("orden_id", orden_id).execute()
             # Eliminar la orden
             res = supabase.table("ordenes_compra").delete().eq("id", orden_id).execute()
             
@@ -1229,7 +1229,7 @@ def chat_astrid():
 
     try:
         genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        model = genai.GenerativeModel('gemini-3.8-flash')
         response = model.generate_content([
             {"role": "user", "parts": [{"text": sys_prompt + "\\n\\nPregunta del usuario: " + prompt_usuario}]}
         ])
