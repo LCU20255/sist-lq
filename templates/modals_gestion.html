@@ -871,15 +871,30 @@
     async function recuperarTelegram(userId) {
         const { value: chatData } = await Swal.fire({
             title: 'Enviar Clave vía Telegram',
+            width: 600,
             html: `
-                <input id="swal-chatid" class="swal2-input" placeholder="Chat ID de Telegram">
+                <div class="text-sm text-slate-500 mb-4 bg-blue-50 p-3 rounded-lg text-left">
+                    <p class="font-bold text-blue-700 mb-1"><i class="bi bi-info-circle-fill mr-1"></i>Sobre el Chat ID</p>
+                    <p>Por políticas de privacidad, los bots de Telegram <b>no pueden enviar mensajes a números telefónicos</b> ni iniciar chats con desconocidos.</p>
+                    <p class="mt-2">El usuario debe iniciar el chat primero. Para obtener su <b>Chat ID</b> numérico, el usuario puede escribirle al bot <b>@userinfobot</b> en Telegram y copiar el ID que devuelve.</p>
+                </div>
+                <input id="swal-chatid" class="swal2-input" placeholder="Ingresa el Chat ID (ej. 123456789)">
                 <input id="swal-mensaje" class="swal2-input" placeholder="Mensaje / Clave temporal">
             `,
             focusConfirm: false,
+            showCancelButton: true,
+            confirmButtonText: '<i class="bi bi-send-fill mr-1"></i> Enviar',
+            cancelButtonText: 'Cancelar',
             preConfirm: () => {
+                const chatId = document.getElementById('swal-chatid').value.trim();
+                const msg = document.getElementById('swal-mensaje').value.trim();
+                if(!chatId || !msg) {
+                    Swal.showValidationMessage("Por favor ingresa el Chat ID y el mensaje.");
+                    return false;
+                }
                 return {
-                    chat_id: document.getElementById('swal-chatid').value,
-                    mensaje: document.getElementById('swal-mensaje').value
+                    chat_id: chatId,
+                    mensaje: msg
                 }
             }
         });

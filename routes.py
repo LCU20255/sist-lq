@@ -1210,9 +1210,9 @@ def chat_astrid():
         return jsonify({"success": False, "error": "No autorizado"}), 401
 
     try:
-        import google.generativeai as genai
+        from google import genai
     except ImportError:
-        return jsonify({"success": False, "error": "El módulo de IA no está instalado."}), 500
+        return jsonify({"success": False, "error": "El módulo google-genai no está instalado."}), 500
 
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
@@ -1228,13 +1228,59 @@ def chat_astrid():
     sys_prompt = f"Eres Astrid, la asistente virtual super inteligente del sistema Facturador SIST-LQ. Hablas en español venezolano, eres profesional, muy amable y proactiva. El usuario con el que hablas se llama {usuario}. Ayúdalo en lo que necesite referente a facturación, sistema, o cualquier otra duda de negocios."
 
     try:
-        genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('gemini-3.8-flash')
-        response = model.generate_content([
-            {"role": "user", "parts": [{"text": sys_prompt + "\\n\\nPregunta del usuario: " + prompt_usuario}]}
-        ])
+        client = genai.Client()
         
-        return jsonify({"success": True, "respuesta": response.text})
+        # 1. Generar texto
+        transcript_interaction = client.interactions.create(
+            model="gemini-3.8-flash",
+            input=sys_prompt + "\\n\\nPregunta del usuario: " + prompt_usuario
+        )
+        respuesta_texto = transcript_interaction.output_text
+        
+        # 2. Generar audio (TTS)
+        tts_interaction = client.interactions.create(
+            model="gemini-3.1-flash-tts-preview",
+            input=respuesta_texto,
+            response_format={"type": "audio"},
+            generation_config={
+                "speech_config": [
+                    {"voice": "Kore"}
+                ]
+            }
+        )
+        
+        # Extraer PCM usando posibles nombres de atributos
+        pcm = getattr(tts_interaction, 'output_audio', None)
+        if not pcm: pcm = getattr(tts_interaction, 'audio', None)
+        if not pcm: pcm = getattr(tts_interaction, 'output_bytes', None)
+        if not pcm:
+            try:
+                # Si el SDK lo encapsula en parts
+                pcm = tts_interaction.candidates[0].content.parts[0].inline_data.data
+            except:
+                pass
+                
+        audio_b64 = ""
+        if pcm:
+            import base64
+            import wave
+            import io
+            
+            wav_io = io.BytesIO()
+            with wave.open(wav_io, "wb") as wf:
+                wf.setnchannels(1)
+                wf.setsampwidth(2)
+                wf.setframerate(24000)
+                wf.writeframes(pcm)
+            
+            wav_bytes = wav_io.getvalue()
+            audio_b64 = base64.b64encode(wav_bytes).decode('utf-8')
+
+        return jsonify({
+            "success": True, 
+            "respuesta": respuesta_texto,
+            "audio_b64": audio_b64
+        })
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 

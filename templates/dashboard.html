@@ -1652,11 +1652,12 @@ async function enviarMensajeAstrid() {
             body: JSON.stringify({prompt: msg})
         });
         const data = await res.json();
-        document.getElementById(loaderId).remove();
+        if(document.getElementById(loaderId)) document.getElementById(loaderId).remove();
         
         if(data.success) {
-            chatContainer.innerHTML += `<div class="flex items-start gap-3"><div class="w-8 h-8 rounded-full bg-indigo-500 flex-shrink-0 flex items-center justify-center text-white text-xs"><i class="bi bi-robot"></i></div><div class="bg-white border border-slate-200 rounded-2xl rounded-tl-none px-4 py-3 text-sm text-slate-700 shadow-sm max-w-[80%]">${data.respuesta.replace(/\n/g, '<br>')}</div></div>`;
-            hablarAstrid(data.respuesta);
+            chatContainer.innerHTML += `<div class="flex items-start gap-3"><div class="w-8 h-8 rounded-full bg-indigo-500 flex-shrink-0 flex items-center justify-center text-white text-xs"><i class="bi bi-robot"></i></div><div class="bg-white border border-slate-200 rounded-2xl rounded-tl-none px-4 py-3 text-sm text-slate-700 shadow-sm max-w-[80%]">${data.respuesta.replace(/
+/g, '<br>')}</div></div>`;
+            hablarAstrid(data.respuesta, data.audio_b64);
         } else {
             chatContainer.innerHTML += `<div class="flex items-start gap-3"><div class="w-8 h-8 rounded-full bg-rose-500 flex-shrink-0 flex items-center justify-center text-white text-xs"><i class="bi bi-exclamation-triangle"></i></div><div class="bg-rose-50 border border-rose-200 rounded-2xl rounded-tl-none px-4 py-3 text-sm text-rose-700 shadow-sm max-w-[80%]">Error: ${data.error}</div></div>`;
         }
@@ -1667,12 +1668,18 @@ async function enviarMensajeAstrid() {
     chatContainer.scrollTop = chatContainer.scrollHeight;
 }
 
-function hablarAstrid(texto) {
+function hablarAstrid(texto, audio_b64) {
+    if (audio_b64) {
+        try {
+            const audio = new Audio('data:audio/wav;base64,' + audio_b64);
+            audio.play();
+            return;
+        } catch(e) { console.error("Error al reproducir audio:", e); }
+    }
     if ('speechSynthesis' in window) {
         window.speechSynthesis.cancel();
         const utterance = new SpeechSynthesisUtterance(texto);
         utterance.lang = 'es-VE';
-        // Remove markdown or special characters before speaking
         utterance.text = texto.replace(/[*#]/g, '');
         window.speechSynthesis.speak(utterance);
     }
