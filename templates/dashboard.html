@@ -1626,6 +1626,12 @@ async function enviarMensajeAstrid() {
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({prompt: msg})
         });
+        // Verificar que la respuesta sea JSON antes de parsear
+        // (evita crash con páginas de error HTML como 502/504)
+        const ct = res.headers.get('content-type') || '';
+        if (!ct.includes('application/json')) {
+            throw new Error(`El servidor respondió con ${res.status} (${res.statusText || 'sin JSON'})`);
+        }
         const data = await res.json();
         if(document.getElementById(loaderId)) document.getElementById(loaderId).remove();
         
@@ -1637,7 +1643,10 @@ async function enviarMensajeAstrid() {
         }
     } catch(e) {
         if(document.getElementById(loaderId)) document.getElementById(loaderId).remove();
-        chatContainer.innerHTML += `<div class="flex items-start gap-3"><div class="w-8 h-8 rounded-full bg-rose-500 flex-shrink-0 flex items-center justify-center text-white text-xs"><i class="bi bi-exclamation-triangle"></i></div><div class="bg-rose-50 border border-rose-200 rounded-2xl rounded-tl-none px-4 py-3 text-sm text-rose-700 shadow-sm max-w-[80%]">Fallo de conexión con Astrid.</div></div>`;
+        const msgError = e.message && e.message.includes('502') ? 
+            'El servidor está iniciando. Espera unos segundos e intenta de nuevo.' :
+            'Fallo de conexión con Astrid.';
+        chatContainer.innerHTML += `<div class="flex items-start gap-3"><div class="w-8 h-8 rounded-full bg-rose-500 flex-shrink-0 flex items-center justify-center text-white text-xs"><i class="bi bi-exclamation-triangle"></i></div><div class="bg-rose-50 border border-rose-200 rounded-2xl rounded-tl-none px-4 py-3 text-sm text-rose-700 shadow-sm max-w-[80%]">${msgError}</div></div>`;
     }
     chatContainer.scrollTop = chatContainer.scrollHeight;
 }
@@ -1667,12 +1676,19 @@ function hablarAstrid(texto, audio_b64, audio_mime) {
 async function reproducirBienvenidaAstrid() {
     try {
         const res = await fetch('/api/astrid/bienvenida');
+        // Verificar que la respuesta sea JSON (no HTML de error 502/504)
+        const ct = res.headers.get('content-type') || '';
+        if (!ct.includes('application/json')) {
+            console.warn('Astrid bienvenida: servidor no listo aún (' + res.status + ')');
+            return; // Fallar silenciosamente — no bloquear el dashboard
+        }
         const data = await res.json();
         if (data.success && data.audio_b64) {
             hablarAstrid(data.saludo, data.audio_b64, data.audio_mime);
         }
     } catch(e) {
-        console.warn("No se pudo obtener el saludo automático de Astrid:", e);
+        console.warn('No se pudo obtener el saludo automático de Astrid:', e.message);
+        // Error silencioso — el dashboard sigue funcionando con normalidad
     }
 }
 
