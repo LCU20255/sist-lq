@@ -63,8 +63,28 @@
             
         </div>
 
-        <div class="flex-1 overflow-y-auto p-6">
-            <table class="w-full text-left text-xs">
+        <!-- Tarjetas KPIs Auditoría -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 p-6 pb-2">
+            <div class="bg-indigo-50/70 border border-indigo-100 rounded-2xl p-4 shadow-sm">
+                <span class="text-[10px] font-bold text-indigo-600 uppercase tracking-wider block">Total Eventos</span>
+                <span id="kpi_audit_total" class="text-xl font-black text-indigo-950">0</span>
+            </div>
+            <div class="bg-emerald-50/70 border border-emerald-100 rounded-2xl p-4 shadow-sm">
+                <span class="text-[10px] font-bold text-emerald-600 uppercase tracking-wider block">Órdenes Registradas</span>
+                <span id="kpi_audit_ordenes" class="text-xl font-black text-emerald-950">0</span>
+            </div>
+            <div class="bg-amber-50/70 border border-amber-100 rounded-2xl p-4 shadow-sm">
+                <span class="text-[10px] font-bold text-amber-600 uppercase tracking-wider block">Seguridad & Usuarios</span>
+                <span id="kpi_audit_seguridad" class="text-xl font-black text-amber-950">0</span>
+            </div>
+            <div class="bg-slate-50 border border-slate-200 rounded-2xl p-4 shadow-sm">
+                <span class="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Último Evento</span>
+                <span id="kpi_audit_ultimo" class="text-xs font-bold text-slate-800 truncate block">-</span>
+            </div>
+        </div>
+
+        <div class="flex-1 overflow-y-auto p-6 pt-2">
+            <table class="w-full text-left text-xs" id="tablaModalAuditoria">
                 <thead class="bg-slate-100 text-slate-600 uppercase font-bold text-[10px] sticky top-0 border-b">
                     <tr>
                         <th class="px-4 py-3 w-40">Fecha y Hora</th>
@@ -95,12 +115,15 @@
                     <p class="text-xs text-slate-400 font-medium">Consulta y registro de proveedores con datos bancarios oficiales</p>
                 </div>
             </div>
-            <div class="flex items-center space-x-3">
+            <div class="flex items-center space-x-2">
+                <button type="button" onclick="abrirModalCargaMasivaProveedores()"
+                        class="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center shadow-sm transition-colors">
+                    <i class="bi bi-file-earmark-excel-fill mr-1.5"></i>Carga Masiva (Excel)
+                </button>
                 <button type="button" onclick="toggleFormNuevoProveedorModal()"
-                        class="px-3.5 py-1.5 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-xs font-bold flex items-center shadow-sm">
+                        class="px-3.5 py-1.5 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-xs font-bold flex items-center shadow-sm transition-colors">
                     <i class="bi bi-plus-lg mr-1.5"></i>Nuevo Proveedor
                 </button>
-                
             </div>
         </div>
 
@@ -278,7 +301,12 @@
                         <input type="text" id="m_item_desc" required placeholder="COMPRA DE DRILL 100% ALGODÓN ROJO" class="w-full px-3 py-2 bg-white border rounded-xl outline-none">
                     </div>
                     <div>
-                        <label class="block font-bold text-slate-700 mb-1">Unidad <span class="text-rose-500">*</span></label>
+                        <div class="flex items-center justify-between mb-1">
+                            <label class="block font-bold text-slate-700">Unidad <span class="text-rose-500">*</span></label>
+                            <button type="button" onclick="agregarUnidadDesdeModal()" class="text-[11px] font-extrabold text-brand-600 hover:text-brand-800 hover:underline flex items-center">
+                                <i class="bi bi-plus-circle-fill mr-0.5"></i>+ Nueva
+                            </button>
+                        </div>
                         <select id="m_item_unid" class="w-full px-3 py-2 bg-white border rounded-xl outline-none font-bold">
                             <option value="UND">UND</option>
                             <option value="Metros">Metros</option>
@@ -329,10 +357,14 @@
                 </div>
                 <div>
                     <h3 class="text-base font-black text-slate-900">Administrar Usuarios y Accesos</h3>
-                    <p class="text-xs text-slate-400 font-medium">Asigna roles de sistema (admin vs usuario)</p>
+                    <p class="text-xs text-slate-400 font-medium">Crea usuarios, asigna roles de sistema y gestiona accesos</p>
                 </div>
             </div>
-            
+            <div>
+                <button type="button" onclick="abrirModalNuevoUsuario()" class="px-3.5 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold flex items-center shadow-sm transition-colors">
+                    <i class="bi bi-person-plus-fill mr-1.5"></i>+ Nuevo Usuario
+                </button>
+            </div>
         </div>
 
         <div class="flex-1 overflow-y-auto p-6">
@@ -341,14 +373,82 @@
                     <tr>
                         <th class="px-4 py-3">Nombre</th>
                         <th class="px-4 py-3">Correo Electrónico</th>
-                        <th class="px-4 py-3 text-center">Rol Actual</th>
+                        <th class="px-4 py-3 text-center">Rol</th>
+                        <th class="px-4 py-3 text-center">Cambiar Rol</th>
                         <th class="px-4 py-3 text-center">Acciones</th>
                     </tr>
                 </thead>
                 <tbody id="bodyModalUsuarios" class="divide-y divide-slate-100">
-                    <tr><td colspan="4" class="text-center py-8 text-slate-400">Cargando usuarios...</td></tr>
+                    <tr><td colspan="5" class="text-center py-8 text-slate-400">Cargando usuarios...</td></tr>
                 </tbody>
             </table>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL CREAR NUEVO USUARIO -->
+<div id="modalNuevoUsuario" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4 animate-fade-in">
+    <div class="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4">
+        <div class="flex justify-between items-center border-b pb-3">
+            <h4 class="font-black text-sm text-slate-900 flex items-center">
+                <i class="bi bi-person-plus-fill mr-2 text-purple-600"></i>Registrar Nuevo Usuario
+            </h4>
+            <button onclick="document.getElementById('modalNuevoUsuario').classList.add('hidden')" class="text-slate-400 hover:text-slate-600"><i class="bi bi-x-lg"></i></button>
+        </div>
+        <form onsubmit="guardarNuevoUsuario(event)" class="space-y-3 text-xs">
+            <div>
+                <label class="block font-bold text-slate-700 mb-1">Nombre Completo <span class="text-rose-500">*</span></label>
+                <input type="text" id="usr_nuevo_nombre" required placeholder="Ej. Ana Pérez" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-purple-500">
+            </div>
+            <div>
+                <label class="block font-bold text-slate-700 mb-1">Correo Electrónico <span class="text-rose-500">*</span></label>
+                <input type="email" id="usr_nuevo_email" required placeholder="ejemplo@empresa.com" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-purple-500">
+            </div>
+            <div>
+                <label class="block font-bold text-slate-700 mb-1">Contraseña Inicial <span class="text-rose-500">*</span></label>
+                <input type="password" id="usr_nuevo_pass" required placeholder="••••••••" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-purple-500">
+            </div>
+            <div>
+                <label class="block font-bold text-slate-700 mb-1">Rol de Acceso <span class="text-rose-500">*</span></label>
+                <select id="usr_nuevo_rol" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none font-bold">
+                    <option value="usuario">Usuario / Operador</option>
+                    <option value="admin">Administrador</option>
+                </select>
+            </div>
+            <div class="flex justify-end space-x-2 pt-2">
+                <button type="button" onclick="document.getElementById('modalNuevoUsuario').classList.add('hidden')" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl">Cancelar</button>
+                <button type="submit" class="px-5 py-2 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl shadow-md">Crear Usuario</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- MODAL CARGA MASIVA DE PROVEEDORES (EXCEL) -->
+<div id="modalCargaMasivaProveedores" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4 animate-fade-in">
+    <div class="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4">
+        <div class="flex justify-between items-center border-b pb-3">
+            <h4 class="font-black text-sm text-slate-900 flex items-center">
+                <i class="bi bi-file-earmark-excel-fill mr-2 text-emerald-600"></i>Carga Masiva de Proveedores (.xlsx)
+            </h4>
+            <button onclick="document.getElementById('modalCargaMasivaProveedores').classList.add('hidden')" class="text-slate-400 hover:text-slate-600"><i class="bi bi-x-lg"></i></button>
+        </div>
+        <p class="text-xs text-slate-500 font-medium">Carga un libro de Excel (.xlsx) con los datos de tus proveedores para importarlos o actualizarlos automáticamente.</p>
+        
+        <div class="p-5 bg-slate-50 border-2 border-dashed border-slate-300 rounded-2xl text-center space-y-2">
+            <i class="bi bi-cloud-arrow-up text-3xl text-emerald-600 block"></i>
+            <input type="file" id="archivoExcelProveedores" accept=".xlsx, .xls" class="text-xs text-slate-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100 cursor-pointer">
+        </div>
+
+        <div class="flex items-center justify-between pt-2">
+            <a href="/api/proveedores/plantilla-excel" class="text-xs font-bold text-teal-700 hover:underline flex items-center">
+                <i class="bi bi-download mr-1"></i>Descargar Plantilla
+            </a>
+            <div class="flex space-x-2">
+                <button type="button" onclick="document.getElementById('modalCargaMasivaProveedores').classList.add('hidden')" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs">Cancelar</button>
+                <button type="button" onclick="subirExcelProveedores()" id="btnSubirExcelProv" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs shadow-md flex items-center">
+                    <i class="bi bi-upload mr-1.5"></i>Subir y Procesar
+                </button>
+            </div>
         </div>
     </div>
 </div>
@@ -503,10 +603,10 @@
                 <td class="px-4 py-3 text-right font-black text-emerald-700">$${parseFloat(o.total_usd || 0).toLocaleString('es-VE', {minimumFractionDigits: 2})}</td>
                 <td class="px-4 py-3 text-right font-black text-slate-900">Bs. ${parseFloat(o.total_bs || 0).toLocaleString('es-VE', {minimumFractionDigits: 2})}</td>
                 <td class="px-4 py-3 text-center flex items-center justify-center space-x-1">
-                    <a href="/orden/${o.id}/pdf" target="_blank"
-                       class="inline-flex items-center px-2 py-1 bg-brand-50 hover:bg-brand-100 text-brand-800 rounded-lg font-bold text-[11px] transition-all" title="Ver PDF">
+                    <button onclick="descargarPdfConPreloader('${o.id}', '${o.nro_orden || o.id}')"
+                       class="inline-flex items-center px-2 py-1 bg-brand-50 hover:bg-brand-100 text-brand-800 rounded-lg font-bold text-[11px] transition-all" title="Descargar PDF">
                         <i class="bi bi-file-earmark-pdf-fill text-rose-600"></i>
-                    </a>
+                    </button>
                     <button onclick="editarOrdenModal('${o.id}')" class="inline-flex items-center px-2 py-1 bg-blue-50 hover:bg-blue-100 text-blue-800 rounded-lg font-bold text-[11px] transition-all" title="Editar Orden">
                         <i class="bi bi-pencil-fill"></i>
                     </button>
@@ -597,17 +697,15 @@
     }
 
     function editarOrdenModal(ordenId) {
-        Swal.fire({
-            title: 'En desarrollo',
-            text: 'La funcionalidad para editar una orden completa (cargar todos los items, proveedor, y actualizarla) está en progreso.',
-            icon: 'info'
-        });
-        // Aquí iría la lógica para redireccionar al dashboard y cargar los datos de la orden en el Canvas.
-        // window.location.href = `/dashboard?edit=${ordenId}`;
+        if (typeof cargarOrdenParaEdicion === 'function') {
+            cargarOrdenParaEdicion(ordenId);
+        } else {
+            Swal.fire('Error', 'Módulo de edición no disponible en este momento.', 'error');
+        }
     }
 
     // =========================================================================
-    // 2. CARGA DE AUDITORÍA
+    // 2. CARGA DE AUDITORÍA (CON KPIS Y DATATABLES)
     // =========================================================================
     async function cargarAuditoriaModal() {
         const tbody = document.getElementById('bodyModalAuditoria');
@@ -616,6 +714,18 @@
             const res = await fetch('/api/movimientos');
             const data = await res.json();
             const movs = data.movimientos || [];
+
+            // Actualizar Tarjetas KPIs
+            document.getElementById('kpi_audit_total').innerText = movs.length;
+            const ordCount = movs.filter(m => (m.modulo && m.modulo.includes('ORDEN')) || (m.accion && m.accion.includes('ORDEN'))).length;
+            document.getElementById('kpi_audit_ordenes').innerText = ordCount;
+            const segCount = movs.filter(m => (m.modulo && m.modulo.includes('SEGURIDAD')) || (m.accion && m.accion.includes('USUARIO'))).length;
+            document.getElementById('kpi_audit_seguridad').innerText = segCount;
+            if (movs.length > 0) {
+                const ult = movs[0];
+                document.getElementById('kpi_audit_ultimo').innerText = `${ult.accion || 'Evento'} (${ult.usuario_nombre || 'Usuario'})`;
+            }
+
             if (movs.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="5" class="text-center py-8 text-slate-400">Sin movimientos registrados</td></tr>';
                 return;
@@ -631,6 +741,25 @@
                     <td class="px-4 py-3 font-medium text-slate-700">${m.descripcion || '-'}</td>
                 </tr>
             `).join('');
+
+            // DataTables
+            if (window.jQuery && $.fn.DataTable) {
+                if ($.fn.DataTable.isDataTable('#tablaModalAuditoria')) {
+                    $('#tablaModalAuditoria').DataTable().destroy();
+                }
+                setTimeout(() => {
+                    $('#tablaModalAuditoria').DataTable({
+                        pageLength: 10,
+                        order: [[0, 'desc']],
+                        language: {
+                            search: "Buscar en Auditoría:",
+                            lengthMenu: "Mostrar _MENU_ registros",
+                            info: "Mostrando _START_ a _END_ de _TOTAL_ eventos",
+                            paginate: { first: "«", last: "»", next: "Sig.", previous: "Ant." }
+                        }
+                    });
+                }, 50);
+            }
         } catch (e) {
             tbody.innerHTML = '<tr><td colspan="5" class="text-center py-6 text-rose-500 font-bold">Error cargando auditoría</td></tr>';
         }
@@ -886,9 +1015,10 @@
                             <option value="admin" ${u.rol === 'admin' ? 'selected' : ''}>Administrador</option>
                         </select>
                     </td>
-                    <td class="px-4 py-3 text-center space-x-2">
+                    <td class="px-4 py-3 text-center space-x-1.5 whitespace-nowrap">
                         <button onclick="cambiarClaveUsuario('${u.id}')" title="Cambiar Contraseña" class="px-2 py-1.5 bg-amber-100 hover:bg-amber-200 text-amber-700 font-bold rounded-lg transition-colors"><i class="bi bi-key-fill"></i></button>
                         <button onclick="recuperarTelegram('${u.id}')" title="Enviar Clave a Telegram" class="px-2 py-1.5 bg-sky-100 hover:bg-sky-200 text-sky-700 font-bold rounded-lg transition-colors"><i class="bi bi-telegram"></i></button>
+                        <button onclick="eliminarUsuario('${u.id}', '${u.nombre}')" title="Eliminar Usuario" class="px-2 py-1.5 bg-rose-100 hover:bg-rose-200 text-rose-700 font-bold rounded-lg transition-colors"><i class="bi bi-trash-fill"></i></button>
                     </td>
                 </tr>
             `).join('');
@@ -1001,6 +1131,133 @@
             }
         }
     }
+
+    async function eliminarUsuario(userId, nombre) {
+        const result = await Swal.fire({
+            title: '¿Eliminar Usuario?',
+            text: `¿Estás seguro de eliminar permanentemente al usuario "${nombre}"?`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#e11d48',
+            cancelButtonColor: '#64748b',
+            confirmButtonText: 'Sí, eliminar',
+            cancelButtonText: 'Cancelar'
+        });
+        if (result.isConfirmed) {
+            try {
+                const res = await fetch(`/api/usuarios/${userId}`, { method: 'DELETE' });
+                const data = await res.json();
+                if (data.success) {
+                    Swal.fire({icon: 'success', title: 'Usuario Eliminado', timer: 1500, showConfirmButton: false});
+                    cargarUsuariosModal();
+                } else {
+                    Swal.fire('Error', data.error || 'No se pudo eliminar el usuario', 'error');
+                }
+            } catch(e) {
+                Swal.fire('Error', 'Error de conexión con el servidor', 'error');
+            }
+        }
+    }
+
+    function abrirModalNuevoUsuario() {
+        document.getElementById('modalNuevoUsuario').classList.remove('hidden');
+        document.getElementById('usr_nuevo_nombre').value = '';
+        document.getElementById('usr_nuevo_email').value = '';
+        document.getElementById('usr_nuevo_pass').value = '';
+    }
+
+    async function guardarNuevoUsuario(e) {
+        e.preventDefault();
+        const nombre = document.getElementById('usr_nuevo_nombre').value.trim();
+        const email = document.getElementById('usr_nuevo_email').value.trim();
+        const password = document.getElementById('usr_nuevo_pass').value;
+        const rol = document.getElementById('usr_nuevo_rol').value;
+
+        try {
+            const res = await fetch('/api/usuarios/nuevo', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ nombre, email, password, rol })
+            });
+            const data = await res.json();
+            if (res.ok && data.success) {
+                document.getElementById('modalNuevoUsuario').classList.add('hidden');
+                Swal.fire({icon: 'success', title: 'Usuario Registrado', text: `El usuario ${nombre} fue creado exitosamente.`, timer: 1500, showConfirmButton: false});
+                cargarUsuariosModal();
+            } else {
+                Swal.fire('Error', data.error || 'No se pudo crear el usuario', 'error');
+            }
+        } catch(err) {
+            Swal.fire('Error', 'Error de conexión al crear usuario', 'error');
+        }
+    }
+
+    function abrirModalCargaMasivaProveedores() {
+        document.getElementById('modalCargaMasivaProveedores').classList.remove('hidden');
+        const fileInput = document.getElementById('archivoExcelProveedores');
+        if (fileInput) fileInput.value = '';
+    }
+
+    async function subirExcelProveedores() {
+        const fileInput = document.getElementById('archivoExcelProveedores');
+        if (!fileInput.files || fileInput.files.length === 0) {
+            Swal.fire('Atención', 'Por favor selecciona un archivo Excel (.xlsx)', 'warning');
+            return;
+        }
+        const file = fileInput.files[0];
+        const formData = new FormData();
+        formData.append('archivo', file);
+
+        const btn = document.getElementById('btnSubirExcelProv');
+        btn.disabled = true;
+        btn.innerHTML = '<i class="bi bi-arrow-repeat animate-spin mr-1.5"></i>Procesando...';
+
+        try {
+            const res = await fetch('/api/proveedores/carga-masiva', {
+                method: 'POST',
+                body: formData
+            });
+            const data = await res.json();
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-upload mr-1.5"></i>Subir y Procesar';
+
+            if (res.ok && data.success) {
+                document.getElementById('modalCargaMasivaProveedores').classList.add('hidden');
+                Swal.fire({
+                    icon: 'success',
+                    title: '¡Carga Exitosa!',
+                    html: `Se procesaron <b>${data.total_procesados}</b> proveedores:<br>• ${data.creados} nuevos creados<br>• ${data.actualizados} actualizados`
+                });
+                cargarProveedoresModal();
+            } else {
+                Swal.fire('Error', data.error || 'No se pudo procesar el archivo Excel', 'error');
+            }
+        } catch(e) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-upload mr-1.5"></i>Subir y Procesar';
+            Swal.fire('Error', 'Error de conexión al subir archivo', 'error');
+        }
+    }
+
+    async function agregarUnidadDesdeModal() {
+        const { value: nuevaUnidad } = await Swal.fire({
+            title: 'Nueva Unidad de Medida',
+            input: 'text',
+            inputPlaceholder: 'Ej. Litros, Metros, Docena, Rollo...',
+            showCancelButton: true,
+            confirmButtonText: 'Agregar Unidad',
+            cancelButtonText: 'Cancelar'
+        });
+        if (nuevaUnidad && nuevaUnidad.trim()) {
+            const val = nuevaUnidad.trim();
+            const sel = document.getElementById('m_item_unid');
+            const opt = document.createElement('option');
+            opt.value = val;
+            opt.innerText = val;
+            sel.appendChild(opt);
+            sel.value = val;
+        }
+    }
 </script>
 
 <!-- =========================================================================
@@ -1014,8 +1271,8 @@
                     <i class="bi bi-robot"></i>
                 </div>
                 <div>
-                    <h3 class="text-lg font-black text-slate-900 flex items-center flex-wrap gap-1.5">Astrid <span class="text-xs font-bold px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded-full">OpenRouter AI</span><span class="text-xs font-bold px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-full flex items-center"><i class="bi bi-soundwave mr-1 text-emerald-600"></i>Neural TTS Dalia (Latina)</span></h3>
-                    <p class="text-xs text-slate-500 font-medium">Tu asistente inteligente corporativa</p>
+                    <h3 class="text-lg font-black text-slate-900 flex items-center flex-wrap gap-1.5">Astrid <span class="text-xs font-bold px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded-full">OpenRouter AI</span><span class="text-xs font-bold px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded-full flex items-center border border-indigo-200"><i class="bi bi-cpu mr-1 text-indigo-600"></i>Cerebro de Datos y Métricas</span></h3>
+                    <p class="text-xs text-slate-500 font-medium">Tu asistente analítica de gestión y datos vivos</p>
                 </div>
             </div>
         </div>
@@ -1024,7 +1281,7 @@
             <div class="flex items-start gap-3">
                 <div class="w-8 h-8 rounded-full bg-indigo-500 flex-shrink-0 flex items-center justify-center text-white text-xs"><i class="bi bi-robot"></i></div>
                 <div class="bg-white border border-slate-200 rounded-2xl rounded-tl-none px-4 py-3 text-sm text-slate-700 shadow-sm max-w-[80%]">
-                    Hola! Soy Astrid, tu asistente de Inteligencia Artificial. En qu te puedo ayudar hoy?
+                    ¡Hola! Soy Astrid, el cerebro de datos del Facturador SIST-LQ. Consulto en tiempo real proveedores, órdenes emitidas, totales en USD/Bs y la tasa BCV. ¿En qué puedo orientarte hoy?
                 </div>
             </div>
         </div>
@@ -1065,34 +1322,34 @@
             </div>
         </div>
         <div class="flex-1 overflow-y-auto p-6 bg-slate-50">
-            <!-- Mtricas -->
+            <!-- Métricas -->
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                 <div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
-                    <p class="text-[10px] uppercase font-bold text-slate-400">Total rdenes Emitidas</p>
+                    <p class="text-[10px] uppercase font-bold text-slate-400">Total Órdenes Emitidas</p>
                     <h4 class="text-2xl font-black text-slate-900 mt-1" id="perfil_total_ordenes">0</h4>
                 </div>
                 <div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
                     <p class="text-[10px] uppercase font-bold text-slate-400">Volumen Facturado USD</p>
-                    <h4 class="text-2xl font-black text-emerald-700 mt-1" id="perfil_total_usd">.00</h4>
+                    <h4 class="text-2xl font-black text-emerald-700 mt-1" id="perfil_total_usd">$0.00</h4>
                 </div>
                 <div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
-                    <p class="text-[10px] uppercase font-bold text-slate-400">ltima Actividad</p>
+                    <p class="text-[10px] uppercase font-bold text-slate-400">Última Actividad</p>
                     <h4 class="text-base font-bold text-slate-700 mt-1" id="perfil_ultima_fecha">-</h4>
                 </div>
             </div>
-            <!-- Tabla de rdenes -->
+            <!-- Tabla de Órdenes -->
             <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
                 <div class="px-4 py-3 border-b border-slate-100 bg-slate-50/50">
-                    <h4 class="text-sm font-bold text-slate-800"><i class="bi bi-journal-check mr-2 text-brand-500"></i>Historial de rdenes</h4>
+                    <h4 class="text-sm font-bold text-slate-800"><i class="bi bi-journal-check mr-2 text-brand-500"></i>Historial de Órdenes</h4>
                 </div>
-                <table class="w-full text-left text-xs">
+                <table class="w-full text-left text-xs" id="tablaPerfilOrdenes">
                     <thead class="bg-slate-50 text-slate-500 uppercase font-bold text-[10px] border-b">
                         <tr>
                             <th class="px-4 py-3">Nro. Orden</th>
                             <th class="px-4 py-3">Fecha</th>
                             <th class="px-4 py-3">Proyecto</th>
                             <th class="px-4 py-3 text-right">Total USD</th>
-                            <th class="px-4 py-3 text-center">Accin</th>
+                            <th class="px-4 py-3 text-center">Acción</th>
                         </tr>
                     </thead>
                     <tbody id="bodyPerfilOrdenes" class="divide-y divide-slate-100">
@@ -1104,18 +1361,18 @@
 </div>
 
 <!-- =========================================================================
-     CENTRO DE DESCARGAS / REPORTES
+     CENTRO DE DESCARGAS / REPORTES (EXCEL .XLSX)
      ========================================================================= -->
 <div id="section-descargas" class="app-section hidden w-full h-full flex flex-col animate-fade-in" style="min-height: calc(100vh - 120px);">
     <div class="bg-white rounded-3xl w-full flex-1 shadow-md flex flex-col border border-slate-200 overflow-hidden">
         <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
             <div class="flex items-center space-x-3">
                 <div class="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-700 flex items-center justify-center text-xl shadow-sm">
-                    <i class="bi bi-cloud-arrow-down-fill"></i>
+                    <i class="bi bi-file-earmark-excel-fill"></i>
                 </div>
                 <div>
-                    <h3 class="text-base font-black text-slate-900">Centro de Descargas (Raw Data)</h3>
-                    <p class="text-xs text-slate-400 font-medium">Descarga la base de datos cruda en CSV para anlisis en Excel o PowerBI</p>
+                    <h3 class="text-base font-black text-slate-900">Centro de Descargas Oficial (Excel .xlsx)</h3>
+                    <p class="text-xs text-slate-400 font-medium">Reportes gerenciales con formato nativo de hojas de cálculo de Microsoft Excel</p>
                 </div>
             </div>
         </div>
@@ -1124,10 +1381,31 @@
                 <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
                     <div>
                         <div class="w-12 h-12 rounded-xl bg-brand-50 text-brand-600 flex items-center justify-center text-2xl mb-3"><i class="bi bi-journal-check"></i></div>
-                        <h4 class="text-sm font-bold text-slate-900">rdenes de Compra</h4>
-                        <p class="text-[11px] text-slate-500 mt-1 mb-4">Data completa de rdenes emitidas: Fechas, montos, tasas de cambio y estado.</p>
+                        <h4 class="text-sm font-bold text-slate-900">Órdenes de Compra</h4>
+                        <p class="text-[11px] text-slate-500 mt-1 mb-4">Reporte detallado de órdenes emitidas, proveedores, proyectos, tasas y montos bimonetarios.</p>
                     </div>
-                    <a href="/api/exportar/ordenes" target="_blank" class="w-full px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-center font-bold text-xs rounded-xl transition-colors"><i class="bi bi-download mr-1.5"></i>Descargar CSV</a>
+                    <a href="/api/exportar/ordenes" target="_blank" class="w-full px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-center font-bold text-xs rounded-xl shadow-sm transition-colors flex items-center justify-center"><i class="bi bi-file-earmark-excel-fill mr-1.5"></i>Descargar Excel (.xlsx)</a>
+                </div>
+                <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
+                    <div>
+                        <div class="w-12 h-12 rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center text-2xl mb-3"><i class="bi bi-buildings-fill"></i></div>
+                        <h4 class="text-sm font-bold text-slate-900">Directorio de Proveedores</h4>
+                        <p class="text-[11px] text-slate-500 mt-1 mb-4">Directorio completo con RIF, cuentas bancarias oficiales, teléfonos y direcciones.</p>
+                    </div>
+                    <a href="/api/exportar/proveedores" target="_blank" class="w-full px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-center font-bold text-xs rounded-xl shadow-sm transition-colors flex items-center justify-center"><i class="bi bi-file-earmark-excel-fill mr-1.5"></i>Descargar Excel (.xlsx)</a>
+                </div>
+                <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
+                    <div>
+                        <div class="w-12 h-12 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center text-2xl mb-3"><i class="bi bi-shield-check"></i></div>
+                        <h4 class="text-sm font-bold text-slate-900">Trazabilidad & Auditoría</h4>
+                        <p class="text-[11px] text-slate-500 mt-1 mb-4">Registro cronológico de movimientos, creación de órdenes y accesos de seguridad.</p>
+                    </div>
+                    <a href="/api/exportar/auditoria" target="_blank" class="w-full px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-center font-bold text-xs rounded-xl shadow-sm transition-colors flex items-center justify-center"><i class="bi bi-file-earmark-excel-fill mr-1.5"></i>Descargar Excel (.xlsx)</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
                 </div>
                 <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
                     <div>

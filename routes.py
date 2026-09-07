@@ -1,6 +1,7 @@
 import os
 import datetime
 import re
+import unicodedata
 import requests
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session, jsonify, current_app, Response
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -265,6 +266,7 @@ def login():
             session["user_nombre"] = "Administrador Principal"
             session["user_email"] = email
             session["user_rol"] = "admin"
+            session["astrid_greet"] = True
             registrar_movimiento("Administrador Principal", "LOGIN", "AUTH", f"Inicio de sesión demo ({email})")
             flash("Inicio de sesión exitoso en modo local (sin BD).", "success")
             return redirect(url_for("main.dashboard"))
@@ -310,6 +312,7 @@ def register():
                     session["user_nombre"] = u["nombre"]
                     session["user_email"] = u["email"]
                     session["user_rol"] = u.get("rol", "usuario")
+                    session["astrid_greet"] = True
 
                     registrar_movimiento(nombre, "REGISTRO_USUARIO", "AUTH", f"Nuevo usuario registrado en SIST-LQ: {nombre} ({email})")
                     flash(f"¡Cuenta creada con éxito! Bienvenido a SIST-LQ, {nombre}.", "success")
@@ -324,6 +327,7 @@ def register():
         session["user_nombre"] = nombre
         session["user_email"] = email
         session["user_rol"] = rol
+        session["astrid_greet"] = True
         registrar_movimiento(nombre, "REGISTRO_USUARIO", "AUTH", f"Nuevo usuario registrado localmente: {nombre}")
         flash(f"¡Cuenta creada con éxito! Bienvenido, {nombre}.", "success")
         return redirect(url_for("main.dashboard"))
@@ -683,6 +687,7 @@ def api_bcv():
 # -----------------------------------------------------------------------------
 # GENERACIÓN DE PDF FORMAL (FORMATO TIUNA COMPLEJO INDUSTRIAL)
 # -----------------------------------------------------------------------------
+@bp.route("/api/pdf/<orden_id>")
 @bp.route("/orden/<orden_id>/pdf")
 def orden_pdf(orden_id):
     supabase = getattr(current_app, "supabase", None)
@@ -749,8 +754,9 @@ def orden_pdf(orden_id):
         from weasyprint import HTML
         pdf_bytes = HTML(string=rendered_html).write_pdf()
         response = Response(pdf_bytes, mimetype="application/pdf")
+        disposition = "attachment" if request.args.get("download") == "1" else "inline"
         filename = f"Orden_Compra_{orden.get('nro_orden', 'doc')}.pdf"
-        response.headers["Content-Disposition"] = f"inline; filename={filename}"
+        response.headers["Content-Disposition"] = f"{disposition}; filename={filename}"
         return response
     except Exception as e:
         current_app.logger.warning(f"WeasyPrint fallback a HTML imprimible: {e}")
@@ -1044,27 +1050,192 @@ def api_listar_ordenes():
 
 @bp.route("/api/ordenes/<orden_id>", methods=["DELETE"])
 def eliminar_orden(orden_id):
+    if session.get("user_rol") != "admin":
+        return jsonify({"success": False, "error": "Acceso denegado. Solo administradores pueden eliminar órdenes."}), 403
+
     supabase = getattr(current_app, "supabase", None)
     if supabase:
         try:
-            # Eliminar los renglones primero por constraint fk (aunque si hay cascade delete no haría falta, es mejor prevenir)
-            supabase.table("orden_detalles").delete().eq("orden_id", orden_id).execute()
-            # Eliminar la orden
-            res = supabase.table("ordenes_compra").delete().eq("id", orden_id).execute()
+            import uuid
+            real_id = orden_id
+            try:
+                uuid.UUID(str(orden_id))
+            except Exception:
+                chk = supabase.table("ordenes_compra").select("id, nro_orden").eq("nro_orden", str(orden_id)).execute()
+                if chk.data:
+                    real_id = chk.data[0]["id"]
+
+            chk_ord = supabase.table("ordenes_compra").select("nro_orden").eq("id", real_id).execute()
+            nro_ref = chk_ord.data[0]["nro_orden"] if (chk_ord.data and len(chk_ord.data) > 0) else orden_id
+
+            try:
+                supabase.table("orden_detalles").delete().eq("orden_id", real_id).execute()
+            except Exception:
+                pass
+
+            supabase.table("ordenes_compra").delete().eq("id", real_id).execute()
             
-            usuario_actual = session.get("user_nombre", "Loreidy Quiñonez")
-            registrar_movimiento(usuario_actual, "ELIMINAR_ORDEN", "ORDENES", f"Orden eliminada: ID {orden_id}")
-            
+            usuario_actual = session.get("user_nombre", "Loreidy")
+            registrar_movimiento(usuario_actual, "ELIMINAR_ORDEN", "ORDENES", f"Orden eliminada: Nro {nro_ref}")
             return jsonify({"success": True})
         except Exception as e:
             return jsonify({"success": False, "error": str(e)}), 500
     else:
-        # Modo Mock (sin base de datos)
         global MOCK_ORDENES
-        MOCK_ORDENES = [o for o in MOCK_ORDENES if str(o.get("id")) != str(orden_id)]
-        usuario_actual = session.get("user_nombre", "Loreidy Quiñonez")
+        MOCK_ORDENES = [o for o in MOCK_ORDENES if str(o.get("id")) != str(orden_id) and str(o.get("nro_orden")) != str(orden_id)]
+        usuario_actual = session.get("user_nombre", "Loreidy")
         registrar_movimiento(usuario_actual, "ELIMINAR_ORDEN", "ORDENES", f"Orden eliminada (Mock): ID {orden_id}")
         return jsonify({"success": True})
+
+
+@bp.route("/api/ordenes/<orden_id>", methods=["GET"])
+def api_obtener_orden(orden_id):
+    if "user_id" not in session:
+        return jsonify({"success": False, "error": "No autorizado"}), 401
+    supabase = getattr(current_app, "supabase", None)
+    orden = None
+    items = []
+    if supabase:
+        try:
+            import uuid
+            real_id = orden_id
+            is_uuid = False
+            try:
+                uuid.UUID(str(orden_id))
+                is_uuid = True
+            except Exception:
+                is_uuid = False
+
+            query = supabase.table("ordenes_compra").select("*, proyectos(id, nombre, codigo)")
+            if is_uuid:
+                res = query.eq("id", orden_id).execute()
+            else:
+                res = query.eq("nro_orden", str(orden_id)).execute()
+
+            if res.data and len(res.data) > 0:
+                orden = res.data[0]
+                real_id = orden["id"]
+                det = supabase.table("orden_detalles").select("*").eq("orden_id", real_id).order("renglon_num", desc=False).execute()
+                items = det.data or []
+        except Exception as e:
+            return jsonify({"success": False, "error": str(e)}), 500
+    else:
+        orden = next((o for o in MOCK_ORDENES if str(o.get("id")) == str(orden_id) or str(o.get("nro_orden")) == str(orden_id)), None)
+        if orden:
+            items = orden.get("items", [])
+    if not orden:
+        return jsonify({"success": False, "error": "Orden no encontrada"}), 404
+    return jsonify({"success": True, "orden": orden, "items": items})
+
+
+@bp.route("/api/ordenes/<orden_id>", methods=["PUT"])
+def api_actualizar_orden(orden_id):
+    if "user_id" not in session:
+        return jsonify({"success": False, "error": "No autorizado"}), 401
+    supabase = getattr(current_app, "supabase", None)
+    req_data = request.get_json(silent=True) or request.form
+    if not req_data:
+        return jsonify({"success": False, "error": "Datos inválidos"}), 400
+
+    try:
+        import uuid
+        real_id = orden_id
+        if supabase:
+            try:
+                uuid.UUID(str(orden_id))
+            except Exception:
+                chk = supabase.table("ordenes_compra").select("id").eq("nro_orden", str(orden_id)).execute()
+                if chk.data:
+                    real_id = chk.data[0]["id"]
+
+        nro_orden = req_data.get("nro_orden")
+        fecha_emision = req_data.get("fecha_emision")
+        proyecto_id = req_data.get("proyecto_id")
+        proveedor_id = req_data.get("proveedor_id")
+        observaciones = req_data.get("observaciones", "")
+        firmante_solicitado = req_data.get("firmante_solicitado", "LOREIDY QUIÑONEZ")
+        firmante_revisado = req_data.get("firmante_revisado", "RAMON RIVAS")
+        items = req_data.get("items", [])
+
+        if isinstance(items, str):
+            import json
+            try:
+                items = json.loads(items)
+            except Exception:
+                items = []
+
+        tasa_bcv = float(req_data.get("tasa_bcv", 804.8109))
+        subtotal_gravable_usd = 0.0
+        for it in items:
+            cant = float(it.get("cantidad", 1))
+            precio = float(it.get("precio_unitario", it.get("precio_unitario_usd", it.get("precio_usd", 0))))
+            subtotal_gravable_usd += cant * precio
+
+        aplica_iva = str(req_data.get("aplica_iva", True)).lower() in ["true", "1", "on", "yes"]
+        iva_usd = round(subtotal_gravable_usd * 0.16, 2) if aplica_iva else 0.0
+        total_usd = round(subtotal_gravable_usd + iva_usd, 2)
+        subtotal_gravable_bs = round(subtotal_gravable_usd * tasa_bcv, 2)
+        iva_bs = round(iva_usd * tasa_bcv, 2)
+        total_bs = round(total_usd * tasa_bcv, 2)
+
+        update_data = {
+            "fecha_emision": fecha_emision,
+            "proyecto_id": proyecto_id,
+            "observaciones": observaciones,
+            "firmante_solicitado": firmante_solicitado,
+            "firmante_revisado": firmante_revisado,
+            "subtotal_gravable_usd": subtotal_gravable_usd,
+            "iva_usd": iva_usd,
+            "total_usd": total_usd,
+            "subtotal_gravable_bs": subtotal_gravable_bs,
+            "iva_bs": iva_bs,
+            "total_bs": total_bs,
+            "tasa_bcv": tasa_bcv
+        }
+        if nro_orden:
+            update_data["nro_orden"] = nro_orden
+
+        if proveedor_id and supabase:
+            p_res = supabase.table("proveedores").select("*").eq("id", proveedor_id).execute()
+            if p_res.data:
+                prov = p_res.data[0]
+                update_data["proveedor_id"] = proveedor_id
+                update_data["proveedor_razon_social"] = prov["razon_social"]
+                update_data["proveedor_rif"] = prov["rif"]
+                update_data["proveedor_beneficiario"] = prov.get("beneficiario") or prov["razon_social"]
+                update_data["proveedor_banco"] = prov.get("banco", "")
+                update_data["proveedor_num_cuenta"] = prov.get("num_cuenta", "")
+
+        if supabase:
+            supabase.table("ordenes_compra").update(update_data).eq("id", real_id).execute()
+            if items:
+                supabase.table("orden_detalles").delete().eq("orden_id", real_id).execute()
+                det_inserts = []
+                for idx, it in enumerate(items, 1):
+                    cant = float(it.get("cantidad", 1))
+                    p_usd = float(it.get("precio_unitario", it.get("precio_unitario_usd", it.get("precio_usd", 0))))
+                    det_inserts.append({
+                        "orden_id": real_id,
+                        "renglon_num": idx,
+                        "descripcion": it.get("descripcion", ""),
+                        "unidad": it.get("unidad", "UND"),
+                        "cantidad": cant,
+                        "precio_unitario_usd": p_usd,
+                        "total_linea_usd": round(cant * p_usd, 2)
+                    })
+                supabase.table("orden_detalles").insert(det_inserts).execute()
+        else:
+            for o in MOCK_ORDENES:
+                if str(o.get("id")) == str(orden_id) or str(o.get("nro_orden")) == str(orden_id):
+                    o.update(update_data)
+                    o["items"] = items
+                    break
+
+        usuario_actual = session.get("user_nombre", "Loreidy")
+        registrar_movimiento(usuario_actual, "EDITAR_ORDEN", "ORDENES", f"Orden actualizada: {nro_orden or orden_id} por ${total_usd:,.2f}")
+        return jsonify({"success": True, "orden_id": real_id, "nro_orden": nro_orden or orden_id, "total_usd": total_usd, "total_bs": total_bs})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
 
 @bp.route("/api/firmantes/nuevo", methods=["POST"])
 def nuevo_firmante():
@@ -1176,6 +1347,74 @@ def cambiar_password_usuario(user_id):
     else:
         return jsonify({"success": True})
 
+
+@bp.route("/api/usuarios/nuevo", methods=["POST"])
+def api_crear_usuario():
+    if session.get("user_rol") != "admin":
+        return jsonify({"success": False, "error": "No tienes permisos de administrador"}), 403
+    req_data = request.get_json(silent=True)
+    if not req_data:
+        return jsonify({"success": False, "error": "Datos incompletos"}), 400
+
+    nombre = req_data.get("nombre", "").strip()
+    email = req_data.get("email", "").strip().lower()
+    password = req_data.get("password", "").strip()
+    rol = req_data.get("rol", "usuario").strip().lower()
+
+    if not nombre or not email or not password:
+        return jsonify({"success": False, "error": "Nombre, correo y contraseña son requeridos."}), 400
+    if rol not in ["admin", "usuario", "revisor"]:
+        rol = "usuario"
+
+    supabase = getattr(current_app, "supabase", None)
+    if supabase:
+        try:
+            chk = supabase.table("usuarios").select("id").eq("email", email).execute()
+            if chk.data:
+                return jsonify({"success": False, "error": f"El correo {email} ya se encuentra registrado."}), 400
+
+            pwd_hash = generate_password_hash(password)
+            ins_data = {
+                "nombre": nombre,
+                "email": email,
+                "password_hash": pwd_hash,
+                "rol": rol
+            }
+            res = supabase.table("usuarios").insert(ins_data).execute()
+            usuario_actual = session.get("user_nombre", "Admin")
+            registrar_movimiento(usuario_actual, "CREAR_USUARIO", "SEGURIDAD", f"Nuevo usuario creado: {nombre} ({email}) - Rol: {rol}")
+            return jsonify({"success": True, "usuario": res.data[0] if res.data else {}})
+        except Exception as e:
+            return jsonify({"success": False, "error": str(e)}), 500
+    else:
+        usuario_actual = session.get("user_nombre", "Admin")
+        registrar_movimiento(usuario_actual, "CREAR_USUARIO", "SEGURIDAD", f"Nuevo usuario (demo): {nombre} ({email}) - Rol: {rol}")
+        return jsonify({"success": True, "usuario": {"id": "usr-demo", "nombre": nombre, "email": email, "rol": rol}})
+
+
+@bp.route("/api/usuarios/<user_id>", methods=["DELETE"])
+def api_eliminar_usuario(user_id):
+    if session.get("user_rol") != "admin":
+        return jsonify({"success": False, "error": "No tienes permisos de administrador"}), 403
+    if str(user_id) == str(session.get("user_id")):
+        return jsonify({"success": False, "error": "No puedes eliminar tu propio usuario de la sesión actual."}), 400
+
+    supabase = getattr(current_app, "supabase", None)
+    if supabase:
+        try:
+            chk = supabase.table("usuarios").select("email, nombre").eq("id", user_id).execute()
+            target_name = chk.data[0]["nombre"] if (chk.data and len(chk.data) > 0) else user_id
+            supabase.table("usuarios").delete().eq("id", user_id).execute()
+            usuario_actual = session.get("user_nombre", "Admin")
+            registrar_movimiento(usuario_actual, "ELIMINAR_USUARIO", "SEGURIDAD", f"Usuario eliminado: {target_name} (ID {user_id})")
+            return jsonify({"success": True})
+        except Exception as e:
+            return jsonify({"success": False, "error": str(e)}), 500
+    else:
+        usuario_actual = session.get("user_nombre", "Admin")
+        registrar_movimiento(usuario_actual, "ELIMINAR_USUARIO", "SEGURIDAD", f"Usuario eliminado (demo): ID {user_id}")
+        return jsonify({"success": True})
+
 import requests
 
 @bp.route("/api/telegram/recuperar", methods=["POST"])
@@ -1234,14 +1473,133 @@ def _generar_edge_tts(texto, voice="es-MX-DaliaNeural"):
             current_app.logger.warning(f"Error generando Edge TTS: {e}")
         return b""
 
-def generar_audio_astrid(texto):
+def slugify_usuario(nombre):
+    """Genera un identificador seguro para nombre de archivo a partir del nombre del usuario."""
+    if not nombre:
+        return "usuario"
+    norm = unicodedata.normalize('NFKD', str(nombre))
+    sin_tildes = "".join(c for c in norm if not unicodedata.combining(c))
+    slug = re.sub(r'[^a-zA-Z0-9]+', '_', sin_tildes.strip().lower())
+    return slug.strip('_') or "usuario"
+
+def obtener_momento_y_saludo(usuario, momento=None):
     """
-    Genera voz para Astrid con Microsoft Edge Neural TTS (es-MX-DaliaNeural).
-    100% gratuito, ilimitado, sin API keys, 0 MB en disco.
-    Retorna: (audio_b64, audio_mime)
+    Calcula el saludo según la hora oficial de Venezuela (UTC-4) o un momento forzado ('manana', 'tarde', 'noche').
+    Retorna: (momento_slug, texto_saludo)
+    """
+    if not momento:
+        utc_now = datetime.datetime.now(datetime.timezone.utc)
+        hora_ve = (utc_now - datetime.timedelta(hours=4)).hour
+        if 5 <= hora_ve < 12:
+            momento = "manana"
+        elif 12 <= hora_ve < 19:
+            momento = "tarde"
+        else:
+            momento = "noche"
+
+    if momento == "manana":
+        saludo_prefijo = "¡Buenos días"
+    elif momento == "tarde":
+        saludo_prefijo = "¡Buenas tardes"
+    else:
+        saludo_prefijo = "¡Buenas noches"
+
+    texto_saludo = f"{saludo_prefijo}, {usuario}! Te doy la bienvenida al Facturador SIST-LQ. Sistemas operativos y listos para gestionar."
+    return momento, texto_saludo
+
+def asegurar_audio_bienvenida_local(usuario, momento=None):
+    """
+    Gestiona el audio de bienvenida resguardado físicamente en disco (static/audio/saludos/):
+    - Si el archivo MP3 ya existe en disco, se reutiliza al 100% (CACHED, 0 latencia, sin llamadas a APIs).
+    - Si no existe (primer ingreso del usuario), se descarga/genera con Edge Neural TTS y se resguarda en disco permanentemente.
     """
     import base64
 
+    usuario = usuario.strip() if usuario else "Usuario"
+    momento_slug, texto_saludo = obtener_momento_y_saludo(usuario, momento)
+    slug_user = slugify_usuario(usuario)
+    filename = f"{slug_user}_{momento_slug}.mp3"
+
+    saludos_dir = os.path.join(current_app.root_path, "static", "audio", "saludos")
+    os.makedirs(saludos_dir, exist_ok=True)
+    filepath = os.path.join(saludos_dir, filename)
+    audio_url = url_for('static', filename=f'audio/saludos/{filename}')
+
+    # 1. Verificar si ya existe en disco con contenido válido (> 1KB)
+    if os.path.exists(filepath) and os.path.getsize(filepath) > 1024:
+        try:
+            with open(filepath, "rb") as f:
+                audio_bytes = f.read()
+            audio_b64 = base64.b64encode(audio_bytes).decode("utf-8")
+            return {
+                "success": True,
+                "cached": True,
+                "saludo": texto_saludo,
+                "audio_url": audio_url,
+                "audio_b64": audio_b64,
+                "audio_mime": "audio/mp3",
+                "usuario": usuario,
+                "momento": momento_slug,
+                "filename": filename
+            }
+        except Exception as e:
+            if current_app:
+                current_app.logger.warning(f"Error leyendo audio en cache {filepath}: {e}")
+
+    # 2. Si no existe en disco: generar una única vez con Edge Neural TTS y resguardar en disco
+    voz = os.getenv("TTS_VOICE", "es-MX-DaliaNeural")
+    audio_bytes = _generar_edge_tts(texto_saludo, voice=voz)
+
+    if audio_bytes and len(audio_bytes) > 1024:
+        try:
+            with open(filepath, "wb") as f:
+                f.write(audio_bytes)
+            audio_b64 = base64.b64encode(audio_bytes).decode("utf-8")
+            return {
+                "success": True,
+                "cached": False,
+                "saludo": texto_saludo,
+                "audio_url": audio_url,
+                "audio_b64": audio_b64,
+                "audio_mime": "audio/mp3",
+                "usuario": usuario,
+                "momento": momento_slug,
+                "filename": filename
+            }
+        except Exception as e:
+            if current_app:
+                current_app.logger.error(f"Error guardando audio en disco {filepath}: {e}")
+            audio_b64 = base64.b64encode(audio_bytes).decode("utf-8")
+            return {
+                "success": True,
+                "cached": False,
+                "saludo": texto_saludo,
+                "audio_url": audio_url,
+                "audio_b64": audio_b64,
+                "audio_mime": "audio/mp3",
+                "usuario": usuario,
+                "momento": momento_slug,
+                "filename": filename
+            }
+
+    return {
+        "success": False,
+        "cached": False,
+        "saludo": texto_saludo,
+        "audio_url": "",
+        "audio_b64": "",
+        "audio_mime": "audio/mp3",
+        "usuario": usuario,
+        "momento": momento_slug,
+        "error": "No se pudo generar el audio de bienvenida."
+    }
+
+def generar_audio_astrid(texto):
+    """
+    Genera voz para Astrid con Microsoft Edge Neural TTS (es-MX-DaliaNeural).
+    Retorna: (audio_b64, audio_mime)
+    """
+    import base64
     texto_limpio = re.sub(r'[*#_`]', '', texto)
     texto_limpio = re.sub(r'[\U00010000-\U0010ffff]', '', texto_limpio).strip()
     if not texto_limpio:
@@ -1257,62 +1615,107 @@ def generar_audio_astrid(texto):
             current_app.logger.error(f"Error en Edge TTS: {err}")
 
     return "", ""
+
 @bp.route("/api/astrid/bienvenida", methods=["GET", "POST"])
 def astrid_bienvenida():
     if "user_id" not in session:
         return jsonify({"success": False, "error": "No autorizado"}), 401
         
-    usuario = session.get("user_nombre", "Loreidy")
+    usuario = request.args.get("usuario") or session.get("user_nombre", "Loreidy")
+    momento = request.args.get("momento")
     
-    # Hora local de Venezuela (UTC-4)
-    utc_now = datetime.datetime.now(datetime.timezone.utc)
-    hora_ve = (utc_now - datetime.timedelta(hours=4)).hour
+    resultado = asegurar_audio_bienvenida_local(usuario, momento=momento)
+    return jsonify(resultado)
+
+
+def obtener_contexto_en_vivo_astrid():
+    """
+    Extrae un resumen en vivo de la base de datos (o mock) para nutrir las respuestas de Astrid.
+    """
+    supabase = getattr(current_app, "supabase", None)
+    contexto = {
+        "total_proveedores": 0,
+        "nombres_proveedores": [],
+        "total_ordenes": 0,
+        "total_usd": 0.0,
+        "total_bs": 0.0,
+        "proyectos": [],
+        "tasa_bcv": 804.81
+    }
     
-    if 5 <= hora_ve < 12:
-        saludo_tiempo = "¡Buenos días"
-    elif 12 <= hora_ve < 19:
-        saludo_tiempo = "¡Buenas tardes"
-    else:
-        saludo_tiempo = "¡Buenas noches"
+    info_bcv = getattr(current_app, "info_bcv", None)
+    if info_bcv and hasattr(info_bcv, "tasa_usd"):
+        contexto["tasa_bcv"] = float(info_bcv.tasa_usd)
         
-    texto_saludo = f"{saludo_tiempo}, {usuario}! Soy Astrid. Todos los sistemas del Facturador SIST-LQ están en línea y a tu disposición."
-    
-    audio_b64, audio_mime = generar_audio_astrid(texto_saludo)
-    
-    return jsonify({
-        "success": True,
-        "saludo": texto_saludo,
-        "audio_b64": audio_b64,
-        "audio_mime": audio_mime
-    })
+    if supabase:
+        try:
+            r_prov = supabase.table("proveedores").select("razon_social").order("razon_social").execute()
+            if r_prov.data:
+                contexto["total_proveedores"] = len(r_prov.data)
+                contexto["nombres_proveedores"] = [p.get("razon_social") for p in r_prov.data if p.get("razon_social")]
+            
+            r_ord = supabase.table("ordenes_compra").select("id, nro_orden, total_usd, total_bs").execute()
+            if r_ord.data:
+                contexto["total_ordenes"] = len(r_ord.data)
+                contexto["total_usd"] = sum(float(o.get("total_usd") or 0) for o in r_ord.data)
+                contexto["total_bs"] = sum(float(o.get("total_bs") or 0) for o in r_ord.data)
+                
+            r_proy = supabase.table("proyectos").select("nombre").execute()
+            if r_proy.data:
+                contexto["proyectos"] = [p.get("nombre") for p in r_proy.data if p.get("nombre")]
+        except Exception as e:
+            if current_app:
+                current_app.logger.warning(f"Error extrayendo contexto Astrid: {e}")
+    else:
+        contexto["total_proveedores"] = len(MOCK_PROVEEDORES)
+        contexto["nombres_proveedores"] = [p.get("razon_social") for p in MOCK_PROVEEDORES]
+        contexto["total_ordenes"] = len(MOCK_ORDENES)
+        contexto["total_usd"] = sum(float(o.get("total_usd") or 0) for o in MOCK_ORDENES)
+        contexto["total_bs"] = sum(float(o.get("total_bs") or 0) for o in MOCK_ORDENES)
+        contexto["proyectos"] = [p.get("nombre") for p in MOCK_PROYECTOS]
+        
+    return contexto
+
 
 def consultar_ia_astrid(prompt_usuario, usuario="Loreidy"):
     """
-    Motor cognitivo de Astrid.
-    Utiliza OpenRouter API con modelos gratuitos (sin chain-of-thought visible).
-    Limpia automáticamente cualquier razonamiento interno antes de retornar.
+    Motor cognitivo de Astrid conectado a los datos vivos del sistema.
+    Utiliza OpenRouter API con modelos ultrarrápidos gratuitos sin reasoning leaked.
     """
+    ctx = obtener_contexto_en_vivo_astrid()
+    tot_prov = ctx["total_proveedores"]
+    nombres_prov = ctx["nombres_proveedores"]
+
+    if tot_prov <= 10:
+        texto_prov = f"{tot_prov} proveedores registrados en total: " + ", ".join(nombres_prov) if nombres_prov else f"{tot_prov} proveedores."
+    else:
+        texto_prov = f"{tot_prov} proveedores registrados en total (más de 10; por brevedad no listes los nombres a menos que te lo pidan específicamente)."
+
     sys_prompt = (
-        f"Eres Astrid, la asistente virtual super inteligente del sistema Facturador SIST-LQ. "
-        f"Hablas en español latino cálido, eres profesional, muy amable y resolutiva. "
-        f"El usuario con el que conversas se llama {usuario}. "
-        f"IMPORTANTE: Responde DIRECTAMENTE y de forma CONCISA (máximo 2 a 3 oraciones). "
-        f"NUNCA muestres tu proceso de razonamiento. NUNCA uses frases como 'thinking process', "
-        f"'let me analyze', 'step 1', etc. Solo da la respuesta final en español."
+        f"Eres Astrid, la asistente virtual inteligente del sistema Facturador SIST-LQ. "
+        f"Hablas en español latino cálido, amable, ejecutiva y resolutiva. "
+        f"El usuario actual es {usuario}.\n\n"
+        f"DATOS EN VIVO DEL SISTEMA EN ESTE MOMENTO:\n"
+        f"- Proveedores: {texto_prov}\n"
+        f"- Órdenes de compra emitidas: {ctx['total_ordenes']} órdenes (Total facturado: ${ctx['total_usd']:,.2f} USD / Bs. {ctx['total_bs']:,.2f})\n"
+        f"- Proyectos en sistema: {', '.join(ctx['proyectos']) if ctx['proyectos'] else 'General'}\n"
+        f"- Tasa oficial BCV: {ctx['tasa_bcv']:,.2f} Bs/USD\n\n"
+        f"REGLAS ESTRICTAS DE RESPUESTA:\n"
+        f"1. Responde DIRECTAMENTE en español en máximo 2 a 3 oraciones cortas.\n"
+        f"2. Si te preguntan cuántos proveedores tienes, responde exactamente cuántos hay. Si son 10 o menos enumera sus nombres; si son más de 10 NO des todos los nombres porque es muy extenso, solo da el total.\n"
+        f"3. NUNCA muestres tu proceso de razonamiento. NUNCA incluyas frases en inglés ni análisis previos."
     )
 
     openrouter_key = os.getenv("OPENROUTER_API_KEY")
     if not openrouter_key:
         raise RuntimeError("OPENROUTER_API_KEY no configurada en las variables de entorno.")
 
-    # Modelos en orden de preferencia — priorizamos los que NO exponen reasoning
     models = [
-        "liquid/lfm-2.5-2.6b:free",
-        "nvidia/nemotron-3.5-lightning:free",
         "minimax/minimax-m3:free",
-        os.getenv("OPENROUTER_MODEL", "liquid/lfm-2.5-2.6b:free"),
+        "minimax/minimax-m2.7:free",
+        "liquid/lfm-2.5-2.6b:free",
+        os.getenv("OPENROUTER_MODEL", "minimax/minimax-m3:free"),
     ]
-    # Eliminar duplicados manteniendo orden
     seen = set()
     models = [m for m in models if not (m in seen or seen.add(m))]
 
@@ -1321,6 +1724,7 @@ def consultar_ia_astrid(prompt_usuario, usuario="Loreidy"):
         "HTTP-Referer": "https://sis-fact-lq.onrender.com",
         "X-Title": "SIST-LQ Astrid Assistant"
     }
+
     for model in models:
         try:
             payload = {
@@ -1329,20 +1733,18 @@ def consultar_ia_astrid(prompt_usuario, usuario="Loreidy"):
                     {"role": "system", "content": sys_prompt},
                     {"role": "user", "content": prompt_usuario}
                 ],
-                "temperature": 0.6,
-                "max_tokens": 300
+                "temperature": 0.3,
+                "max_tokens": 250
             }
-            r = requests.post("https://openrouter.ai/api/v1/chat/completions", json=payload, headers=headers, timeout=15)
+            r = requests.post("https://openrouter.ai/api/v1/chat/completions", json=payload, headers=headers, timeout=12)
             if r.status_code == 200:
                 data = r.json()
                 choices = data.get("choices", [])
                 if choices and "message" in choices[0]:
                     msg = choices[0]["message"]
-                    texto_resp = msg.get("content") or ""
+                    texto_resp = msg.get("content") or msg.get("reasoning") or ""
 
-                    # ── Limpieza de razonamiento interno (thinking models) ──────
-                    # Algunos modelos gratuitos exponen su chain-of-thought en el content
-                    # Eliminamos todo el bloque de razonamiento y nos quedamos con la respuesta
+                    # Limpieza de cualquier prefijo de razonamiento
                     patrones_reasoning = [
                         r"Here'?s a thinking process:.*?(?=\n\n[^\n])",
                         r"^\*\*Analyze.*?(?=\n\n[^\n])",
@@ -1353,30 +1755,18 @@ def consultar_ia_astrid(prompt_usuario, usuario="Loreidy"):
                     for patron in patrones_reasoning:
                         texto_resp = re.sub(patron, '', texto_resp, flags=re.DOTALL | re.IGNORECASE | re.MULTILINE).strip()
 
-                    # Si el texto empieza con numeración tipo "1. **Analyze..." limpiamos
-                    if re.match(r'^\d+\.\s+\*\*', texto_resp):
-                        # Buscar primer párrafo que parezca respuesta en español
-                        parrafos = [p.strip() for p in texto_resp.split('\n\n') if p.strip()]
-                        for parrafo in reversed(parrafos):
-                            if re.search(r'[áéíóúñÁÉÍÓÚÑ¡¿]', parrafo) or len(parrafo) < 300:
-                                texto_resp = parrafo
-                                break
-
-                    # Limpiar markdown residual (**bold**, etc.)
                     texto_resp = re.sub(r'\*\*([^*]+)\*\*', r'\1', texto_resp)
                     texto_resp = re.sub(r'\*([^*]+)\*', r'\1', texto_resp)
                     texto_resp = texto_resp.strip()
 
                     if texto_resp:
                         return texto_resp
-            else:
-                if current_app:
-                    current_app.logger.warning(f"OpenRouter modelo {model} retorno {r.status_code}: {r.text[:100]}")
         except Exception as e:
             if current_app:
                 current_app.logger.warning(f"Excepcion en OpenRouter ({model}): {e}")
 
-    raise RuntimeError("No se pudo conectar con el motor de IA OpenRouter. Verifique su conexión y API key.")
+    raise RuntimeError("No se pudo conectar con el motor de IA OpenRouter. Verifique su conexión.")
+
 
 @bp.route("/api/astrid", methods=["POST"])
 def chat_astrid():
@@ -1391,102 +1781,356 @@ def chat_astrid():
     prompt_usuario = req_data["prompt"]
 
     try:
-        # 1. Generar texto cognitivo con OpenRouter
         respuesta_texto = consultar_ia_astrid(prompt_usuario, usuario)
-        
-        # 2. Generar audio (ElevenLabs primario con fallback a Gemini TTS)
-        audio_b64, audio_mime = generar_audio_astrid(respuesta_texto)
-
+        # Astrid en el chat responde exclusivamente en texto estructurado y rápido (cerebro de datos sin voz)
         return jsonify({
             "success": True, 
-            "respuesta": respuesta_texto,
-            "audio_b64": audio_b64,
-            "audio_mime": audio_mime
+            "respuesta": respuesta_texto
         })
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
-import csv
+
+# -----------------------------------------------------------------------------
+# EXPORTACIONES EN FORMATO EXCEL NATIVO (.XLSX)
+# -----------------------------------------------------------------------------
 import io
-from flask import Response
+import openpyxl
+from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+from openpyxl.utils import get_column_letter
+
+def _estilizar_hoja_excel(ws, headers, data_rows):
+    fill_header = PatternFill(start_color="0F766E", end_color="0F766E", fill_type="solid") # Teal 700
+    font_header = Font(name="Arial", size=10, bold=True, color="FFFFFF")
+    font_data = Font(name="Arial", size=9)
+    border_thin = Border(
+        left=Side(style='thin', color='CBD5E1'),
+        right=Side(style='thin', color='CBD5E1'),
+        top=Side(style='thin', color='CBD5E1'),
+        bottom=Side(style='thin', color='CBD5E1')
+    )
+
+    ws.append(headers)
+    ws.row_dimensions[1].height = 24
+    for cell in ws[1]:
+        cell.fill = fill_header
+        cell.font = font_header
+        cell.alignment = Alignment(horizontal='center', vertical='center')
+
+    for r_idx, row in enumerate(data_rows, start=2):
+        ws.append(row)
+        ws.row_dimensions[r_idx].height = 20
+
+    for row in ws.iter_rows(min_row=2, max_row=ws.max_row, min_col=1, max_col=len(headers)):
+        for cell in row:
+            cell.font = font_data
+            cell.border = border_thin
+            if isinstance(cell.value, (int, float)):
+                cell.number_format = '#,##0.00'
+                cell.alignment = Alignment(horizontal='right', vertical='center')
+            else:
+                cell.alignment = Alignment(horizontal='left', vertical='center')
+
+    for col in ws.columns:
+        max_len = 0
+        for cell in col:
+            val = str(cell.value or '')
+            if len(val) > max_len: max_len = len(val)
+        col_letter = get_column_letter(col[0].column)
+        ws.column_dimensions[col_letter].width = max(max_len + 4, 13)
+
 
 @bp.route("/api/exportar/ordenes")
 def exportar_ordenes_raw():
     if session.get("user_rol") != "admin":
         return "Acceso denegado", 403
     supabase = getattr(current_app, "supabase", None)
-    if not supabase: return "Mock Data", 400
-    try:
-        res = supabase.table("ordenes_compra").select("*").execute()
-        if not res.data: return "No data", 404
-        
-        output = io.StringIO()
-        writer = csv.DictWriter(output, fieldnames=res.data[0].keys())
-        writer.writeheader()
-        writer.writerows(res.data)
-        
-        return Response(output.getvalue(), mimetype="text/csv", headers={"Content-Disposition": "attachment;filename=ordenes_raw.csv"})
-    except Exception as e:
-        return str(e), 500
+    ordenes = []
+    if supabase:
+        try:
+            res = supabase.table("ordenes_compra").select("*, proyectos(nombre)").order("fecha_emision", desc=True).execute()
+            ordenes = res.data or []
+        except Exception:
+            ordenes = MOCK_ORDENES
+    else:
+        ordenes = MOCK_ORDENES
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Órdenes de Compra"
+
+    headers = ["Nro. Orden", "Fecha Emisión", "Proveedor", "RIF", "Proyecto", "Tasa BCV", "Total USD", "Total Bs", "Estado"]
+    data = []
+    for o in ordenes:
+        p_nom = o.get("proyectos", {}).get("nombre") if isinstance(o.get("proyectos"), dict) else o.get("proyecto_nombre", "GENERAL")
+        data.append([
+            o.get("nro_orden", ""),
+            str(o.get("fecha_emision", ""))[:10],
+            o.get("proveedor_razon_social", ""),
+            o.get("proveedor_rif", ""),
+            p_nom,
+            float(o.get("tasa_bcv") or 0),
+            float(o.get("total_usd") or 0),
+            float(o.get("total_bs") or 0),
+            str(o.get("estado", "emitida")).upper()
+        ])
+
+    _estilizar_hoja_excel(ws, headers, data)
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+    return Response(
+        output.getvalue(),
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=Reporte_Ordenes_SIST-LQ.xlsx"}
+    )
+
 
 @bp.route("/api/exportar/proveedores")
 def exportar_proveedores_raw():
     if session.get("user_rol") != "admin":
         return "Acceso denegado", 403
     supabase = getattr(current_app, "supabase", None)
-    if not supabase: return "Mock Data", 400
-    try:
-        res = supabase.table("proveedores").select("*").execute()
-        if not res.data: return "No data", 404
-        output = io.StringIO()
-        writer = csv.DictWriter(output, fieldnames=res.data[0].keys())
-        writer.writeheader()
-        writer.writerows(res.data)
-        return Response(output.getvalue(), mimetype="text/csv", headers={"Content-Disposition": "attachment;filename=proveedores_raw.csv"})
-    except Exception as e:
-        return str(e), 500
+    provs = []
+    if supabase:
+        try:
+            res = supabase.table("proveedores").select("*").order("razon_social").execute()
+            provs = res.data or []
+        except Exception:
+            provs = MOCK_PROVEEDORES
+    else:
+        provs = MOCK_PROVEEDORES
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Proveedores"
+
+    headers = ["Razón Social", "RIF", "Beneficiario", "Banco", "Nro. Cuenta", "Teléfono", "Email", "Dirección"]
+    data = []
+    for p in provs:
+        data.append([
+            p.get("razon_social", ""),
+            p.get("rif", ""),
+            p.get("beneficiario") or p.get("razon_social", ""),
+            p.get("banco", ""),
+            p.get("num_cuenta", ""),
+            p.get("telefono", ""),
+            p.get("email", ""),
+            p.get("direccion", "")
+        ])
+
+    _estilizar_hoja_excel(ws, headers, data)
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+    return Response(
+        output.getvalue(),
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=Reporte_Proveedores_SIST-LQ.xlsx"}
+    )
+
 
 @bp.route("/api/exportar/auditoria")
 def exportar_auditoria_raw():
     if session.get("user_rol") != "admin":
         return "Acceso denegado", 403
     supabase = getattr(current_app, "supabase", None)
-    if not supabase: return "Mock Data", 400
-    try:
-        res = supabase.table("auditoria").select("*").execute()
-        if not res.data: return "No data", 404
-        output = io.StringIO()
-        writer = csv.DictWriter(output, fieldnames=res.data[0].keys())
-        writer.writeheader()
-        writer.writerows(res.data)
-        return Response(output.getvalue(), mimetype="text/csv", headers={"Content-Disposition": "attachment;filename=auditoria_raw.csv"})
-    except Exception as e:
-        return str(e), 500
+    movs = []
+    if supabase:
+        try:
+            res = supabase.table("auditoria").select("*").order("fecha_hora", desc=True).execute()
+            movs = res.data or []
+        except Exception:
+            movs = MOCK_MOVIMIENTOS
+    else:
+        movs = MOCK_MOVIMIENTOS
 
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Auditoría"
+
+    headers = ["Fecha y Hora", "Usuario", "Acción", "Módulo", "Descripción"]
+    data = []
+    for m in movs:
+        data.append([
+            str(m.get("fecha_hora", m.get("timestamp", ""))),
+            m.get("usuario", ""),
+            m.get("accion", ""),
+            m.get("modulo", ""),
+            m.get("descripcion", "")
+        ])
+
+    _estilizar_hoja_excel(ws, headers, data)
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+    return Response(
+        output.getvalue(),
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=Reporte_Auditoria_SIST-LQ.xlsx"}
+    )
+
+
+# -----------------------------------------------------------------------------
+# CARGA MASIVA DE PROVEEDORES VÍA EXCEL (.XLSX) Y PLANTILLA
+# -----------------------------------------------------------------------------
+@bp.route("/api/proveedores/plantilla-excel", methods=["GET"])
+def descargar_plantilla_proveedores():
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Plantilla Proveedores"
+    headers = ["RAZON_SOCIAL", "RIF", "BENEFICIARIO", "BANCO", "NUMERO_CUENTA", "TELEFONO", "EMAIL", "DIRECCION"]
+    ejemplos = [
+        ["DISTRIBUIDORA TEXTIL ANDINA C.A.", "J-40123456-7", "DISTRIBUIDORA TEXTIL ANDINA", "Banesco", "0134-0001-12-1234567890", "0414-5551234", "ventas@andina.com", "Zona Industrial La Bandera, Caracas"],
+        ["SOLUCIONES INDUSTRIALES VENEZUELA S.A.", "J-30987654-2", "SOLUCIONES INDUSTRIALES", "Banco Mercantil", "0105-0022-33-0987654321", "0412-8889900", "info@soluciones.ve", "Av. Francisco de Miranda, Caracas"]
+    ]
+    _estilizar_hoja_excel(ws, headers, ejemplos)
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+    return Response(
+        output.getvalue(),
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=Plantilla_Proveedores_SIST-LQ.xlsx"}
+    )
+
+
+@bp.route("/api/proveedores/carga-masiva", methods=["POST"])
+def carga_masiva_proveedores():
+    if session.get("user_rol") != "admin":
+        return jsonify({"success": False, "error": "Acceso denegado. Solo administradores pueden realizar cargas masivas."}), 403
+
+    if "archivo" not in request.files:
+        return jsonify({"success": False, "error": "No se envió ningún archivo de Excel."}), 400
+
+    archivo = request.files["archivo"]
+    if not archivo.filename.lower().endswith(('.xlsx', '.xls')):
+        return jsonify({"success": False, "error": "El archivo debe ser un libro de Excel válido (.xlsx)."}), 400
+
+    try:
+        wb = openpyxl.load_workbook(archivo, data_only=True)
+        ws = wb.active
+        rows = list(ws.iter_rows(values_only=True))
+
+        if len(rows) < 2:
+            return jsonify({"success": False, "error": "El archivo de Excel no contiene renglones de datos."}), 400
+
+        headers = [str(h).strip().upper() if h else "" for h in rows[0]]
+
+        def col_idx(pattern):
+            for i, h in enumerate(headers):
+                if pattern in h:
+                    return i
+            return -1
+
+        i_razon = col_idx("RAZON")
+        i_rif = col_idx("RIF")
+        i_benef = col_idx("BENEF")
+        i_banco = col_idx("BANCO")
+        i_cuenta = col_idx("CUENTA")
+        i_tel = col_idx("TEL")
+        i_email = col_idx("EMAIL")
+        i_dir = col_idx("DIR")
+
+        if i_razon == -1 or i_rif == -1:
+            return jsonify({"success": False, "error": "El archivo debe incluir obligatoriamente las columnas 'RAZON_SOCIAL' y 'RIF'."}), 400
+
+        supabase = getattr(current_app, "supabase", None)
+        creados = 0
+        actualizados = 0
+
+        for r in rows[1:]:
+            if not r or not any(r):
+                continue
+            razon = str(r[i_razon]).strip() if (i_razon < len(r) and r[i_razon]) else ""
+            rif = str(r[i_rif]).strip().upper() if (i_rif < len(r) and r[i_rif]) else ""
+            if not razon or not rif:
+                continue
+
+            benef = str(r[i_benef]).strip() if (i_benef != -1 and i_benef < len(r) and r[i_benef]) else razon
+            banco = str(r[i_banco]).strip() if (i_banco != -1 and i_banco < len(r) and r[i_banco]) else "Banco Principal"
+            cuenta = str(r[i_cuenta]).strip() if (i_cuenta != -1 and i_cuenta < len(r) and r[i_cuenta]) else "0000-0000-00-0000000000"
+            tel = str(r[i_tel]).strip() if (i_tel != -1 and i_tel < len(r) and r[i_tel]) else ""
+            email = str(r[i_email]).strip() if (i_email != -1 and i_email < len(r) and r[i_email]) else ""
+            dir_txt = str(r[i_dir]).strip() if (i_dir != -1 and i_dir < len(r) and r[i_dir]) else ""
+
+            data_prov = {
+                "razon_social": razon,
+                "rif": rif,
+                "beneficiario": benef,
+                "banco": banco,
+                "num_cuenta": cuenta,
+                "telefono": tel,
+                "email": email,
+                "direccion": dir_txt
+            }
+
+            if supabase:
+                chk = supabase.table("proveedores").select("id").eq("rif", rif).execute()
+                if chk.data:
+                    supabase.table("proveedores").update(data_prov).eq("id", chk.data[0]["id"]).execute()
+                    actualizados += 1
+                else:
+                    supabase.table("proveedores").insert(data_prov).execute()
+                    creados += 1
+            else:
+                existente = next((p for p in MOCK_PROVEEDORES if p["rif"] == rif), None)
+                if existente:
+                    existente.update(data_prov)
+                    actualizados += 1
+                else:
+                    data_prov["id"] = f"prov-{len(MOCK_PROVEEDORES)+1}"
+                    MOCK_PROVEEDORES.append(data_prov)
+                    creados += 1
+
+        usuario_actual = session.get("user_nombre", "Admin")
+        registrar_movimiento(usuario_actual, "CARGA_MASIVA_PROVEEDORES", "PROVEEDORES", f"Carga masiva Excel completada: {creados} nuevos, {actualizados} actualizados.")
+        return jsonify({
+            "success": True,
+            "creados": creados,
+            "actualizados": actualizados,
+            "total_procesados": creados + actualizados
+        })
+    except Exception as e:
+        return jsonify({"success": False, "error": f"Error procesando archivo Excel: {str(e)}"}), 500
+
+
+# -----------------------------------------------------------------------------
+# PERFIL DE PROVEEDOR (HISTORIAL DE ÓRDENES Y PROYECTO REAL)
+# -----------------------------------------------------------------------------
 @bp.route("/api/proveedores/<rif>/perfil", methods=["GET"])
 def perfil_proveedor(rif):
     supabase = getattr(current_app, "supabase", None)
     if supabase:
         try:
-            # Buscar el proveedor
             res_prov = supabase.table("proveedores").select("*").eq("rif", rif).execute()
             if not res_prov.data:
                 return jsonify({"success": False, "error": "Proveedor no encontrado"}), 404
             
             proveedor = res_prov.data[0]
-            
-            # Buscar las órdenes emitidas a este proveedor
-            res_ordenes = supabase.table("ordenes_compra").select("id, nro_orden, fecha_emision, total_usd, estado").eq("proveedor_rif", rif).order("fecha_emision", desc=True).execute()
+            res_ordenes = supabase.table("ordenes_compra").select("id, nro_orden, fecha_emision, total_usd, estado, proyecto_id, proyectos(nombre)").eq("proveedor_rif", rif).order("fecha_emision", desc=True).execute()
             
             ordenes = []
             if res_ordenes.data:
                 for o in res_ordenes.data:
+                    p_nombre = "GENERAL"
+                    if o.get("proyectos") and isinstance(o.get("proyectos"), dict):
+                        p_nombre = o["proyectos"].get("nombre", "GENERAL")
+                    elif o.get("proyecto_id"):
+                        try:
+                            p_q = supabase.table("proyectos").select("nombre").eq("id", o["proyecto_id"]).execute()
+                            if p_q.data:
+                                p_nombre = p_q.data[0].get("nombre", "GENERAL")
+                        except Exception:
+                            pass
+
                     ordenes.append({
                         "id": o.get("id"),
-                        "fecha": o.get("fecha_emision")[:10] if o.get("fecha_emision") else "",
-                        "proyecto": "N/A", # Opcional: cargar nombre de proyecto si se requiere
+                        "nro_orden": o.get("nro_orden") or str(o.get("id"))[:8],
+                        "fecha": str(o.get("fecha_emision", ""))[:10],
+                        "proyecto": p_nombre,
                         "total_usd": o.get("total_usd"),
-                        "estado": o.get("estado")
+                        "estado": o.get("estado", "emitida")
                     })
             
             return jsonify({
@@ -1497,7 +2141,6 @@ def perfil_proveedor(rif):
         except Exception as e:
             return jsonify({"success": False, "error": str(e)}), 500
     else:
-        # Mock para demostración
         prov = next((p for p in MOCK_PROVEEDORES if p.get("rif") == rif), None)
         if not prov:
             return jsonify({"success": False, "error": "Proveedor no encontrado"}), 404
@@ -1507,13 +2150,16 @@ def perfil_proveedor(rif):
         for o in ordenes:
             ordenes_fmt.append({
                 "id": o.get("id"),
-                "fecha": o.get("fecha_emision")[:10] if o.get("fecha_emision") else "",
-                "proyecto": "Mock Proyecto",
+                "nro_orden": o.get("nro_orden") or str(o.get("id"))[:8],
+                "fecha": str(o.get("fecha_emision", ""))[:10],
+                "proyecto": o.get("proyecto_nombre", "MUESTRAS INTEVEP"),
                 "total_usd": o.get("total_usd"),
-                "estado": o.get("estado")
+                "estado": o.get("estado", "emitida")
             })
         return jsonify({
             "success": True,
             "proveedor": prov,
             "ordenes": ordenes_fmt
         })
+
+

@@ -51,6 +51,31 @@
     <!-- Flatpickr CSS -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     <link rel="stylesheet" type="text/css" href="https://npmcdn.com/flatpickr/dist/themes/airbnb.css">
+    
+    <!-- jQuery & DataTables CDN -->
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/jquery.dataTables.min.css">
+    <script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
+    <style>
+        .dataTables_wrapper .dataTables_length select {
+            padding: 4px 20px 4px 8px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 11px; background: #fff;
+        }
+        .dataTables_wrapper .dataTables_filter input {
+            padding: 5px 10px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 11px; margin-left: 6px; outline: none;
+        }
+        .dataTables_wrapper .dataTables_filter input:focus {
+            border-color: #0d9488; box-shadow: 0 0 0 2px rgba(13, 148, 136, 0.2);
+        }
+        .dataTables_wrapper .dataTables_info, .dataTables_wrapper .dataTables_paginate {
+            font-size: 11px; color: #64748b !important; padding-top: 10px;
+        }
+        .dataTables_wrapper .dataTables_paginate .paginate_button.current {
+            background: #0f766e !important; color: white !important; border-radius: 8px; border: none; font-weight: bold;
+        }
+        .dataTables_wrapper .dataTables_paginate .paginate_button:hover {
+            background: #14b8a6 !important; color: white !important; border-radius: 8px; border: none;
+        }
+    </style>
     {% block extra_head %}{% endblock %}
 </head>
 <body class="bg-slate-50 text-slate-800 antialiased min-h-screen flex flex-col md:flex-row">
@@ -85,8 +110,8 @@
                     Inicio - Dashboard
                 </button>
 
-                <button type="button" onclick="if(typeof openOffcanvas === 'function'){ openOffcanvas(); } else { window.location.href='{{ url_for('main.dashboard') }}?open_canvas=1'; }" 
-                   class="w-full text-left flex items-center px-4 py-3 text-sm font-semibold rounded-xl transition-all duration-200 text-brand-100/80 hover:bg-brand-800/60 hover:text-white">
+                <button type="button" onclick="switchTab('nueva-orden')" 
+                   class="w-full text-left flex items-center px-4 py-3 text-sm font-semibold rounded-xl transition-all duration-200 text-brand-100/80 hover:bg-brand-800/60 hover:text-white nav-btn" data-tab="nueva-orden">
                     <i class="bi bi-file-earmark-plus-fill mr-3 text-lg text-brand-300"></i>
                     Nueva Orden de Compra
                 </button>
@@ -205,6 +230,52 @@
                     </span>
                 </div>
 
+                <!-- Centro de Notificaciones -->
+                <div class="relative">
+                    <button type="button" onclick="toggleNotificaciones()" class="relative p-2.5 bg-white hover:bg-slate-100 border border-slate-200 rounded-2xl text-slate-600 hover:text-brand-700 shadow-sm transition-all focus:outline-none" title="Centro de Notificaciones">
+                        <i class="bi bi-bell-fill text-base"></i>
+                        <span id="badgeNotificaciones" class="absolute -top-1 -right-1 w-5 h-5 bg-rose-500 text-white font-extrabold text-[10px] rounded-full flex items-center justify-center shadow">
+                            3
+                        </span>
+                    </button>
+                    <!-- Menú Desplegable Notificaciones -->
+                    <div id="panelNotificaciones" class="hidden absolute right-0 mt-2 w-80 sm:w-96 bg-white border border-slate-200 rounded-3xl shadow-2xl z-50 overflow-hidden animate-fade-in">
+                        <div class="p-4 bg-slate-900 text-white flex items-center justify-between">
+                            <div class="flex items-center space-x-2">
+                                <i class="bi bi-bell-fill text-teal-400"></i>
+                                <h4 class="text-xs font-black uppercase tracking-wider">Centro de Notificaciones</h4>
+                            </div>
+                            <button type="button" onclick="limpiarNotificaciones()" class="text-[10px] text-slate-300 hover:text-white font-bold underline">Marcar leídas</button>
+                        </div>
+                        <div class="p-3 space-y-2 max-h-72 overflow-y-auto divide-y divide-slate-100" id="listaNotificaciones">
+                            <div class="pt-2 flex items-start space-x-3">
+                                <div class="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center flex-shrink-0 mt-0.5"><i class="bi bi-currency-dollar"></i></div>
+                                <div class="text-xs">
+                                    <p class="font-bold text-slate-800">Tasa BCV Sincronizada</p>
+                                    <p class="text-slate-500 text-[11px]">Tasa oficial vigente cargada en ${{ format_decimal(info_bcv.tasa_usd if info_bcv else 804.8109, 2) }} Bs.</p>
+                                    <span class="text-[9px] text-slate-400">Hoy</span>
+                                </div>
+                            </div>
+                            <div class="pt-2 flex items-start space-x-3">
+                                <div class="w-8 h-8 rounded-xl bg-teal-100 text-teal-700 flex items-center justify-center flex-shrink-0 mt-0.5"><i class="bi bi-file-earmark-check"></i></div>
+                                <div class="text-xs">
+                                    <p class="font-bold text-slate-800">Sistema Facturador Operativo</p>
+                                    <p class="text-slate-500 text-[11px]">Control bimonetario activo con formato oficial Tiuna Complejo Industrial.</p>
+                                    <span class="text-[9px] text-slate-400">En línea</span>
+                                </div>
+                            </div>
+                            <div class="pt-2 flex items-start space-x-3">
+                                <div class="w-8 h-8 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center flex-shrink-0 mt-0.5"><i class="bi bi-robot"></i></div>
+                                <div class="text-xs">
+                                    <p class="font-bold text-slate-800">Astrid IA Lista</p>
+                                    <p class="text-slate-500 text-[11px]">Voz neural y modelo cognitivo conectados a la base de datos.</p>
+                                    <span class="text-[9px] text-slate-400">Activo</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Botón de Acción Principal del Header -->
                 {% block header_actions %}{% endblock %}
             </div>
@@ -286,7 +357,28 @@
             if (tabId === 'auditoria' && typeof cargarAuditoriaModal === 'function') cargarAuditoriaModal();
             if (tabId === 'usuarios' && typeof cargarUsuariosModal === 'function') cargarUsuariosModal();
             if (tabId === 'proyectos' && typeof cargarProyectosModal === 'function') cargarProyectosModal();
+            if (tabId === 'nueva-orden' && typeof prepararNuevaOrden === 'function') prepararNuevaOrden();
         }
+
+        function toggleNotificaciones() {
+            const panel = document.getElementById('panelNotificaciones');
+            if (panel) panel.classList.toggle('hidden');
+        }
+
+        function limpiarNotificaciones() {
+            const badge = document.getElementById('badgeNotificaciones');
+            if (badge) badge.classList.add('hidden');
+            const lista = document.getElementById('listaNotificaciones');
+            if (lista) lista.innerHTML = '<div class="py-6 text-center text-xs text-slate-400 font-medium">No hay notificaciones pendientes.</div>';
+        }
+
+        document.addEventListener('click', function(e) {
+            const panel = document.getElementById('panelNotificaciones');
+            const btn = e.target.closest('[title="Centro de Notificaciones"]');
+            if (panel && !panel.contains(e.target) && !btn && !panel.classList.contains('hidden')) {
+                panel.classList.add('hidden');
+            }
+        });
 
         // Animación helper
         document.head.insertAdjacentHTML('beforeend', `

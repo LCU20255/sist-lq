@@ -3,7 +3,7 @@
 {% block title %}Dashboard - SIST-LQ{% endblock %}
 {% block page_title %}Panel de Control Principal{% endblock %}
 {% block header_actions %}
-<button type="button" onclick="openOffcanvas()" 
+<button type="button" onclick="openNuevaOrden()" 
         class="inline-flex items-center px-5 py-2.5 bg-gradient-to-r from-teal-600 to-brand-700 hover:from-teal-700 hover:to-brand-800 text-white text-xs font-extrabold rounded-2xl shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all">
     <i class="bi bi-plus-lg mr-2 text-base"></i>Nueva Orden de Compra
 </button>
@@ -32,9 +32,9 @@
         </div>
 
         <div class="flex items-center gap-3 z-10 flex-shrink-0">
-            <button type="button" onclick="openOffcanvas()" 
+            <button type="button" onclick="openNuevaOrden()" 
                class="px-5 py-3 bg-white hover:bg-brand-50 text-brand-900 text-xs font-black rounded-2xl shadow-lg hover:shadow-xl transition-all flex items-center">
-                <i class="bi bi-file-earmark-plus-fill mr-2 text-brand-600 text-base"></i>Emitir Orden en Canvas
+                <i class="bi bi-file-earmark-plus-fill mr-2 text-brand-600 text-base"></i>Nueva Orden de Compra
             </button>
             <button type="button" onclick="document.getElementById('auditoria-section').scrollIntoView({behavior: 'smooth'})"
                     class="px-4 py-3 bg-black/20 hover:bg-black/30 border border-white/20 text-white text-xs font-bold rounded-2xl transition-all flex items-center">
@@ -138,7 +138,7 @@
                 </p>
             </div>
             <div class="flex items-center space-x-3">
-                <button type="button" onclick="openOffcanvas()" 
+                <button type="button" onclick="openNuevaOrden()" 
                         class="inline-flex items-center px-3.5 py-1.5 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-xs font-bold shadow-sm transition-all">
                     <i class="bi bi-plus-circle mr-1.5"></i>Nueva Orden
                 </button>
@@ -195,10 +195,10 @@
                                     </span>
                                 </td>
                                 <td class="px-6 py-4 text-center whitespace-nowrap">
-                                    <a href="{{ url_for('main.orden_pdf', orden_id=orden.id) }}" target="_blank"
+                                    <button type="button" onclick="descargarPdfConPreloader('{{ orden.id }}', '{{ orden.nro_orden }}')"
                                        class="inline-flex items-center px-3.5 py-1.5 bg-brand-50 hover:bg-brand-100 text-brand-800 rounded-xl border border-brand-200 font-bold text-xs shadow-sm hover:shadow transition-all">
-                                        <i class="bi bi-file-earmark-pdf-fill mr-1.5 text-rose-600"></i>Ver PDF
-                                    </a>
+                                        <i class="bi bi-file-earmark-pdf-fill mr-1.5 text-rose-600"></i>Descargar PDF
+                                    </button>
                                 </td>
                             </tr>
                         {% endfor %}
@@ -207,7 +207,7 @@
                             <td colspan="9" class="px-6 py-12 text-center text-slate-400">
                                 <i class="bi bi-inbox text-4xl mb-2 block text-slate-300"></i>
                                 <p class="font-bold text-slate-600">No hay órdenes registradas aún.</p>
-                                <button type="button" onclick="openOffcanvas()" class="mt-3 text-xs text-brand-600 font-bold hover:underline">
+                                <button type="button" onclick="openNuevaOrden()" class="mt-3 text-xs text-brand-600 font-bold hover:underline">
                                     + Crear la primera orden de compra en Canvas →
                                 </button>
                             </td>
@@ -285,39 +285,43 @@
     </div>
     {% endif %}
 
-</div>
+</div> <!-- End of inner content container -->
+</div> <!-- End of section-dashboard -->
 
 <!-- =========================================================================
-     5. FORMULARIO TIPO CANVAS (SLIDE-OVER LATERAL INTERACTIVO Y COMPLETO)
+     5. SECCIÓN SPA NATIVA: NUEVA / EDITAR ORDEN DE COMPRA (SIN OFFCANVAS)
      ========================================================================= -->
-<div id="offcanvasOverlay" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 hidden opacity-0 transition-opacity duration-300" onclick="closeOffcanvas()"></div>
-
-<div id="offcanvasPanel" class="fixed inset-y-0 right-0 z-50 w-full max-w-4xl bg-slate-100 shadow-2xl transform translate-x-full transition-transform duration-300 ease-in-out flex flex-col border-l border-slate-300">
+<div id="section-nueva-orden" class="app-section hidden w-full pb-16 animate-fade-in">
     
-    <!-- Header del Canvas -->
-    <div class="px-6 py-4 border-b border-slate-200 bg-white flex items-center justify-between sticky top-0 z-20 shadow-sm">
-        <div class="flex items-center space-x-3">
-            <div class="w-10 h-10 rounded-2xl bg-gradient-to-tr from-brand-600 to-teal-500 text-white flex items-center justify-center text-xl shadow-md">
-                <i class="bi bi-file-earmark-plus-fill"></i>
+    <!-- Header de la Sección -->
+    <div class="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white border border-slate-200 rounded-3xl p-6 shadow-sm">
+        <div class="flex items-center space-x-4">
+            <div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-brand-600 to-teal-500 text-white flex items-center justify-center text-2xl shadow-md">
+                <i class="bi bi-file-earmark-plus-fill" id="nuevaOrdenIcon"></i>
             </div>
             <div>
-                <h3 class="text-lg font-black text-slate-900 tracking-tight flex items-center">
+                <h2 id="nuevaOrdenTitulo" class="text-xl font-black text-slate-900 tracking-tight flex items-center">
                     Nueva Orden de Compra
-                    <span class="ml-3 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-brand-50 text-brand-800 border border-brand-200">
-                        CANVAS SIST-LQ
+                    <span id="nuevaOrdenBadge" class="ml-3 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-brand-50 text-brand-800 border border-brand-200">
+                        EMISIÓN OFICIAL SIST-LQ
                     </span>
-                </h3>
-                <p class="text-xs text-slate-400 font-medium">Emisión bimonetaria instantánea con formato oficial Tiuna Complejo Industrial</p>
+                </h2>
+                <p id="nuevaOrdenSubtitulo" class="text-xs text-slate-500 font-medium mt-0.5">
+                    Emisión bimonetaria instantánea con formato oficial Tiuna Complejo Industrial
+                </p>
             </div>
         </div>
-        <button onclick="closeOffcanvas()" class="w-9 h-9 rounded-2xl bg-slate-100 hover:bg-rose-50 hover:text-rose-600 flex items-center justify-center text-slate-500 transition-colors">
-            <i class="bi bi-x-lg text-lg"></i>
-        </button>
+        <div class="flex items-center space-x-2">
+            <button type="button" onclick="cancelarEdicionOVolver()" class="px-4 py-2.5 rounded-2xl border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 font-bold text-xs shadow-sm transition-all flex items-center">
+                <i class="bi bi-arrow-left mr-2"></i> Volver al Dashboard
+            </button>
+        </div>
     </div>
 
-    <!-- Cuerpo del Formulario en el Canvas -->
-    <div class="flex-1 overflow-y-auto p-6 space-y-6">
+    <!-- Cuerpo del Formulario -->
+    <div class="bg-slate-100/70 border border-slate-200 rounded-3xl p-6 shadow-sm">
         <form id="formNuevaOrdenCanvas" onsubmit="emitirOrdenCanvas(event)" class="space-y-6">
+            <input type="hidden" id="editing_orden_id" value="">
 
             <!-- PASO 1: NÚMERO DE ORDEN Y FECHA -->
             <div class="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm space-y-4">
@@ -354,7 +358,7 @@
                              <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
                             <i class="bi bi-calendar-date text-slate-400"></i>
                         </div>
-                        <input type="text" name="fecha_emision" required placeholder="YYYY-MM-DD" value="{{ datetime.datetime.now().strftime('%Y-%m-%d') }}"
+                        <input type="text" id="canvas_fecha_emision" name="fecha_emision" required placeholder="YYYY-MM-DD" value="{{ datetime.datetime.now().strftime('%Y-%m-%d') }}"
                                class="flatpickr-date w-full pl-4 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 font-bold text-xs outline-none focus:bg-white focus:ring-2 focus:ring-blue-500 transition-all">
                         </div>
                     </div>
@@ -668,17 +672,19 @@
             </div>
 
             <!-- BOTÓN DE EMISIÓN PRINCIPAL -->
-            <div class="pt-2 sticky bottom-0 bg-slate-100/90 backdrop-blur-md pb-4 z-10">
+            <div class="pt-2 sticky bottom-0 bg-slate-100/90 backdrop-blur-md pb-4 z-10 flex gap-3">
+                <button type="button" onclick="cancelarEdicionOVolver()" class="w-1/4 py-4 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-sm rounded-2xl transition-all">
+                    Cancelar
+                </button>
                 <button type="submit" id="btnSubmitCanvas"
-                        class="w-full py-4 bg-gradient-to-r from-teal-600 via-brand-700 to-brand-800 hover:from-teal-700 hover:to-brand-900 text-white font-black text-sm rounded-2xl shadow-xl hover:shadow-2xl transition-all flex items-center justify-center uppercase tracking-wider">
+                        class="w-3/4 py-4 bg-gradient-to-r from-teal-600 via-brand-700 to-brand-800 hover:from-teal-700 hover:to-brand-900 text-white font-black text-sm rounded-2xl shadow-xl hover:shadow-2xl transition-all flex items-center justify-center uppercase tracking-wider">
                     <i class="bi bi-file-earmark-check-fill mr-2 text-lg"></i>
-                    Emitir Orden de Compra Oficial
+                    <span id="btnSubmitCanvasText">Emitir Orden de Compra Oficial</span>
                 </button>
             </div>
         </form>
     </div>
-</div>
-</div> <!-- End of section-dashboard -->
+</div> <!-- End of section-nueva-orden -->
 
 <!-- =========================================================================
      5. MODAL DE ÉXITO TRAS EMISIÓN CON ENLACE DIRECTO AL PDF
@@ -695,10 +701,10 @@
             </p>
         </div>
         <div class="flex flex-col gap-2.5">
-            <a id="modalExitoBtnPdf" href="#" target="_blank"
+            <button id="modalExitoBtnPdf" type="button" onclick=""
                class="w-full py-3 bg-gradient-to-r from-emerald-600 to-teal-700 text-white font-black text-xs rounded-2xl shadow-lg hover:shadow-xl transition-all flex items-center justify-center">
-                <i class="bi bi-file-earmark-pdf-fill mr-2 text-base"></i> Abrir / Descargar Formato PDF
-            </a>
+                <i class="bi bi-file-earmark-pdf-fill mr-2 text-base"></i> Descargar Formato PDF Oficial
+            </button>
             <button type="button" onclick="cerrarModalExitoYRecargar()" 
                     class="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-2xl transition-colors">
                 Volver al Dashboard
@@ -706,6 +712,49 @@
         </div>
     </div>
 </div>
+
+<!-- =========================================================================
+     MODAL PRELOADER DE DESCARGA PDF MODERNO Y PERSONALIZADO
+     ========================================================================= -->
+<div id="modalPreloaderPdf" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
+    <div class="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl text-center space-y-6 animate-scale-up border border-slate-100">
+        <div class="relative w-20 h-20 mx-auto">
+            <div class="absolute inset-0 rounded-full border-4 border-slate-100"></div>
+            <div class="absolute inset-0 rounded-full border-4 border-brand-600 border-t-transparent animate-spin"></div>
+            <div class="absolute inset-0 flex items-center justify-center text-rose-600 text-2xl">
+                <i class="bi bi-file-earmark-pdf-fill"></i>
+            </div>
+        </div>
+        
+        <div>
+            <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-black bg-brand-50 text-brand-800 border border-brand-200 mb-2">
+                <i class="bi bi-shield-check mr-1.5 text-brand-600"></i> DOCUMENTO OFICIAL TIUNA
+            </span>
+            <h3 class="text-lg font-black text-slate-900">
+                ¡Hola, {{ session.get('user_nombre', 'Loreidy') }}!
+            </h3>
+            <p class="text-xs text-slate-500 font-medium mt-1">
+                Se está generando y descargando el archivo oficial de la orden de compra emitida. Por favor, espere unos segundos...
+            </p>
+        </div>
+
+        <!-- Barra de progreso moderna -->
+        <div class="space-y-2">
+            <div class="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden p-0.5 border border-slate-200">
+                <div id="pdfProgressBar" class="bg-gradient-to-r from-brand-500 via-teal-500 to-emerald-500 h-full rounded-full transition-all duration-300 ease-out" style="width: 15%;"></div>
+            </div>
+            <div class="flex justify-between items-center text-[11px] font-bold text-slate-500">
+                <span id="pdfProgressStatus">Iniciando generación de documento oficial...</span>
+                <span id="pdfProgressPercent">PDF</span>
+            </div>
+        </div>
+
+        <div class="pt-2 border-t border-slate-100 flex items-center justify-center text-[11px] text-slate-400">
+            <i class="bi bi-lock-fill mr-1 text-emerald-600"></i> Descarga directa en segundo plano (sin abrir nuevas pestañas)
+        </div>
+    </div>
+</div>
+
 
 <!-- =========================================================================
      MODAL NUEVO PROYECTO RÁPIDO
@@ -971,24 +1020,252 @@
 <script>
 
     // =========================================================================
-    // CONTROL DEL CANVAS / OFFCANVAS
+    // CONTROL DE SECCIÓN SPA: NUEVA / EDITAR ORDEN DE COMPRA
     // =========================================================================
-    function openOffcanvas() {
-        const overlay = document.getElementById('offcanvasOverlay');
-        const panel = document.getElementById('offcanvasPanel');
-        overlay.classList.remove('hidden');
-        setTimeout(() => overlay.classList.add('opacity-100'), 10);
-        panel.classList.remove('translate-x-full');
+    window.editingOrdenId = null;
+
+    function openNuevaOrden(modo = 'crear') {
+        if (typeof switchTab === 'function') {
+            switchTab('nueva-orden');
+        } else {
+            document.querySelectorAll('.app-section').forEach(s => s.classList.add('hidden'));
+            document.getElementById('section-nueva-orden')?.classList.remove('hidden');
+        }
+        if (modo === 'crear') {
+            resetearFormularioOrden();
+        }
         actualizarFichaProveedorCanvas();
         recalcularTotalesCanvas();
     }
 
+    function openOffcanvas() {
+        openNuevaOrden('crear');
+    }
+
     function closeOffcanvas() {
-        const overlay = document.getElementById('offcanvasOverlay');
-        const panel = document.getElementById('offcanvasPanel');
-        overlay.classList.remove('opacity-100');
-        panel.classList.add('translate-x-full');
-        setTimeout(() => overlay.classList.add('hidden'), 300);
+        cancelarEdicionOVolver();
+    }
+
+    function cancelarEdicionOVolver() {
+        resetearFormularioOrden();
+        if (typeof switchTab === 'function') {
+            switchTab('dashboard');
+        } else {
+            document.querySelectorAll('.app-section').forEach(s => s.classList.add('hidden'));
+            document.getElementById('section-dashboard')?.classList.remove('hidden');
+        }
+    }
+
+    function prepararNuevaOrden() {
+        if (!window.editingOrdenId) {
+            resetearFormularioOrden();
+        }
+        actualizarFichaProveedorCanvas();
+        recalcularTotalesCanvas();
+    }
+
+    // =========================================================================
+    // DESCARGA DIRECTA DE PDF CON PRELOADER ANIMADO Y PERSONALIZADO
+    // =========================================================================
+    async function descargarPdfConPreloader(ordenId, nroOrden) {
+        const modal = document.getElementById('modalPreloaderPdf');
+        const bar = document.getElementById('pdfProgressBar');
+        const txt = document.getElementById('pdfProgressStatus');
+        
+        if (modal) {
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+        if (bar) bar.style.width = '15%';
+        if (txt) txt.innerText = 'Iniciando generación de documento oficial...';
+
+        let progress = 15;
+        const interval = setInterval(() => {
+            if (progress < 85) {
+                progress += Math.floor(Math.random() * 15) + 8;
+                if (progress > 85) progress = 85;
+                if (bar) bar.style.width = progress + '%';
+                if (txt) {
+                    if (progress > 55) txt.innerText = 'Aplicando snapshot inmutable y firmas autorizadas...';
+                    else if (progress > 30) txt.innerText = 'Renderizando formato oficial Tiuna Complejo Industrial...';
+                }
+            }
+        }, 180);
+
+        try {
+            const response = await fetch(`/api/pdf/${ordenId}?download=1`);
+            if (!response.ok) throw new Error('Error en el servidor al generar PDF');
+            const blob = await response.blob();
+
+            clearInterval(interval);
+            if (bar) bar.style.width = '100%';
+            if (txt) txt.innerText = '¡Documento listo! Descargando a su equipo...';
+
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `Orden_Compra_${nroOrden || ordenId}.pdf`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+
+            setTimeout(() => {
+                if (modal) {
+                    modal.classList.add('hidden');
+                    modal.classList.remove('flex');
+                }
+                if (bar) bar.style.width = '0%';
+            }, 800);
+        } catch (err) {
+            clearInterval(interval);
+            if (modal) {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+            }
+            Swal.fire({
+                icon: 'error',
+                title: 'Error de Descarga',
+                text: 'No se pudo generar el documento PDF. Por favor, intente nuevamente.'
+            });
+        }
+    }
+
+    // =========================================================================
+    // MÓDULO DE EDICIÓN COMPLETA DE ÓRDENES
+    // =========================================================================
+    async function cargarOrdenParaEdicion(ordenId) {
+        Swal.fire({
+            title: 'Cargando orden...',
+            text: 'Obteniendo datos oficiales para edición',
+            allowOutsideClick: false,
+            didOpen: () => { Swal.showLoading(); }
+        });
+
+        try {
+            const res = await fetch(`/api/ordenes/${ordenId}`);
+            const data = await res.json();
+            Swal.close();
+
+            if (!data.success || !data.orden) {
+                Swal.fire({icon: 'error', title: 'Error', text: data.error || 'No se pudo cargar la orden.'});
+                return;
+            }
+
+            const orden = data.orden;
+            const items = data.items || [];
+
+            window.editingOrdenId = ordenId;
+            const hiddenId = document.getElementById('editing_orden_id');
+            if (hiddenId) hiddenId.value = ordenId;
+
+            // Cambiar textos y títulos
+            const titulo = document.getElementById('nuevaOrdenTitulo');
+            if (titulo) {
+                titulo.innerHTML = `Editar Orden de Compra <span id="nuevaOrdenBadge" class="ml-3 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-900 border border-amber-300">MODO EDICIÓN</span>`;
+            }
+            const btnText = document.getElementById('btnSubmitCanvasText');
+            if (btnText) btnText.innerText = 'Guardar Cambios de la Orden';
+
+            // Llenar campos
+            if (document.getElementById('canvas_nro_orden')) document.getElementById('canvas_nro_orden').value = orden.nro_orden || '';
+            if (document.getElementById('canvas_fecha_emision')) document.getElementById('canvas_fecha_emision').value = (orden.fecha_emision || '').substring(0, 10);
+            if (document.getElementById('canvas_tasa_bcv')) document.getElementById('canvas_tasa_bcv').value = orden.tasa_bcv || 1.0;
+            if (document.getElementById('canvas_fecha_tasa')) document.getElementById('canvas_fecha_tasa').value = (orden.fecha_tasa || '').substring(0, 10);
+
+            const selProv = document.getElementById('canvas_proveedor_id');
+            if (selProv) {
+                for (let i = 0; i < selProv.options.length; i++) {
+                    const opt = selProv.options[i];
+                    if (opt.value == orden.proveedor_id || (orden.proveedor_rif && opt.dataset.rif === orden.proveedor_rif)) {
+                        selProv.selectedIndex = i;
+                        break;
+                    }
+                }
+                actualizarFichaProveedorCanvas();
+            }
+
+            const selProy = document.getElementById('canvas_proyecto_id');
+            if (selProy && orden.proyecto_id) {
+                selProy.value = orden.proyecto_id;
+            }
+
+            const chkIva = document.getElementById('canvas_aplica_iva');
+            if (chkIva) {
+                chkIva.checked = !!(orden.aplica_iva || parseFloat(orden.iva_usd || 0) > 0);
+            }
+
+            const selSolic = document.querySelector('select[name="firmante_solicitado"]');
+            if (selSolic && orden.firmante_solicitado) selSolic.value = orden.firmante_solicitado;
+
+            const selRev = document.querySelector('select[name="firmante_revisado"]');
+            if (selRev && orden.firmante_revisado) selRev.value = orden.firmante_revisado;
+
+            const txtObs = document.querySelector('textarea[name="observaciones"]');
+            if (txtObs) txtObs.value = orden.observaciones || '';
+
+            // Cargar renglones
+            const tbody = document.getElementById('canvasItemsBody');
+            tbody.innerHTML = '';
+            if (items.length > 0) {
+                items.forEach(it => {
+                    agregarFilaCanvas(it.descripcion || '', it.cantidad || 1, it.unidad || 'UND', it.precio_unitario || 0.00);
+                });
+            } else {
+                agregarFilaCanvas('', 1, 'UND', 0.00);
+            }
+
+            recalcularTotalesCanvas();
+
+            // Cambiar a la sección nueva-orden
+            if (typeof switchTab === 'function') {
+                switchTab('nueva-orden');
+            } else {
+                document.querySelectorAll('.app-section').forEach(s => s.classList.add('hidden'));
+                document.getElementById('section-nueva-orden')?.classList.remove('hidden');
+            }
+
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        } catch (err) {
+            Swal.close();
+            Swal.fire({icon: 'error', title: 'Error', text: 'Error al consultar la orden.'});
+        }
+    }
+
+    function resetearFormularioOrden() {
+        window.editingOrdenId = null;
+        const hiddenId = document.getElementById('editing_orden_id');
+        if (hiddenId) hiddenId.value = '';
+
+        const titulo = document.getElementById('nuevaOrdenTitulo');
+        if (titulo) {
+            titulo.innerHTML = `Nueva Orden de Compra <span id="nuevaOrdenBadge" class="ml-3 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-brand-50 text-brand-800 border border-brand-200">EMISIÓN OFICIAL SIST-LQ</span>`;
+        }
+        const btnText = document.getElementById('btnSubmitCanvasText');
+        if (btnText) btnText.innerText = 'Emitir Orden de Compra Oficial';
+
+        const btnSubmit = document.getElementById('btnSubmitCanvas');
+        if (btnSubmit) {
+            btnSubmit.disabled = false;
+            btnSubmit.innerHTML = '<i class="bi bi-file-earmark-check-fill mr-2 text-lg"></i> <span id="btnSubmitCanvasText">Emitir Orden de Compra Oficial</span>';
+        }
+
+        const form = document.getElementById('formNuevaOrdenCanvas');
+        if (form) form.reset();
+
+        const today = new Date().toISOString().split('T')[0];
+        const fechaEmisionInput = document.getElementById('canvas_fecha_emision');
+        const fechaTasaInput = document.getElementById('canvas_fecha_tasa');
+        if (fechaEmisionInput) fechaEmisionInput.value = today;
+        if (fechaTasaInput) fechaTasaInput.value = today;
+
+        const tbody = document.getElementById('canvasItemsBody');
+        if (tbody) {
+            tbody.innerHTML = '';
+            agregarFilaCanvas('', 1, 'UND', 0.00);
+        }
+        actualizarFichaProveedorCanvas();
+        recalcularTotalesCanvas();
     }
 
     // Si viene con ?open_canvas=1 en la URL, abrir de inmediato
@@ -1004,7 +1281,7 @@
 
         const params = new URLSearchParams(window.location.search);
         if (params.get('open_canvas') === '1') {
-            openOffcanvas();
+            openNuevaOrden('crear');
         }
     });
 
@@ -1199,10 +1476,95 @@
         const form = document.getElementById('formNuevaOrdenCanvas');
         const btn = document.getElementById('btnSubmitCanvas');
 
-        // Deshabilitar botón para evitar dobles clics
         btn.disabled = true;
-        btn.innerHTML = '<i class="bi bi-arrow-repeat animate-spin mr-2 text-lg"></i>Generando Documento Seguro...';
+        btn.innerHTML = '<i class="bi bi-arrow-repeat animate-spin mr-2 text-lg"></i>' + (window.editingOrdenId ? 'Guardando Cambios...' : 'Generando Documento Seguro...');
 
+        // Si estamos en MODO EDICIÓN:
+        if (window.editingOrdenId) {
+            const rows = document.querySelectorAll('#canvasItemsBody .item-row');
+            const items = [];
+            rows.forEach((row, i) => {
+                const desc = row.querySelector('input[name="descripcion[]"]')?.value || '';
+                const cant = parseFloat(row.querySelector('input[name="cantidad[]"]')?.value) || 1;
+                const unid = row.querySelector('input[name="unidad[]"]')?.value || 'UND';
+                const pu = parseFloat(row.querySelector('input[name="precio_unitario_usd[]"]')?.value) || 0;
+                if (desc.trim()) {
+                    items.push({
+                        codigo: `REN-${i+1}`,
+                        descripcion: desc,
+                        unidad: unid,
+                        cantidad: cant,
+                        precio_unitario: pu
+                    });
+                }
+            });
+
+            if (items.length === 0) {
+                Swal.fire({icon: 'error', title: 'Atención', text: 'Debe incluir al menos un renglón con descripción en la orden.'});
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-file-earmark-check-fill mr-2 text-lg"></i> <span id="btnSubmitCanvasText">Guardar Cambios de la Orden</span>';
+                return;
+            }
+
+            const selProv = document.getElementById('canvas_proveedor_id');
+            const optProv = selProv?.options[selProv.selectedIndex];
+
+            const payload = {
+                nro_orden: document.getElementById('canvas_nro_orden')?.value,
+                fecha_emision: document.getElementById('canvas_fecha_emision')?.value,
+                proveedor_id: selProv?.value,
+                proveedor_rif: optProv?.dataset.rif || '',
+                proveedor_razon_social: optProv?.innerText || '',
+                proyecto_id: document.getElementById('canvas_proyecto_id')?.value,
+                tasa_bcv: parseFloat(document.getElementById('canvas_tasa_bcv')?.value) || 1.0,
+                fecha_tasa: document.getElementById('canvas_fecha_tasa')?.value,
+                aplica_iva: document.getElementById('canvas_aplica_iva')?.checked,
+                firmante_solicitado: document.querySelector('select[name="firmante_solicitado"]')?.value,
+                firmante_revisado: document.querySelector('select[name="firmante_revisado"]')?.value,
+                observaciones: document.querySelector('textarea[name="observaciones"]')?.value || '',
+                items: items
+            };
+
+            try {
+                const res = await fetch(`/api/ordenes/${window.editingOrdenId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json();
+                if (res.ok && data.success) {
+                    const ordenGuardadaId = window.editingOrdenId;
+                    const nroGuardado = data.nro_orden || ordenGuardadaId;
+                    resetearFormularioOrden();
+                    Swal.fire({
+                        title: '¡Orden Modificada Exitosamente!',
+                        html: `La orden Nro <b>${nroGuardado}</b> fue actualizada correctamente.<br><br>
+                               <button type="button" onclick="descargarPdfConPreloader('${ordenGuardadaId}', '${nroGuardado}')"
+                                  style="display:inline-flex; align-items:center; justify-content:center; padding:12px 24px; background:linear-gradient(to right, #0d9488, #0f766e); color:white; border-radius:12px; font-weight:800; cursor:pointer; border:none; margin-top:10px; font-size:13px; box-shadow:0 4px 12px rgba(13,148,136,0.3);">
+                                   <i class="bi bi-file-earmark-pdf-fill mr-2"></i> Descargar PDF Actualizado
+                               </button>`,
+                        icon: 'success',
+                        confirmButtonText: 'Ir a Órdenes Emitidas',
+                        confirmButtonColor: '#0f766e'
+                    }).then(() => {
+                        if (typeof switchTab === 'function') {
+                            switchTab('ordenes');
+                        }
+                    });
+                } else {
+                    Swal.fire({icon: 'error', title: 'Error', text: data.error || 'Error al actualizar la orden.'});
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="bi bi-file-earmark-check-fill mr-2 text-lg"></i> <span id="btnSubmitCanvasText">Guardar Cambios de la Orden</span>';
+                }
+            } catch (err) {
+                Swal.fire({icon: 'error', title: 'Error', text: 'Error de comunicación con el servidor.'});
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-file-earmark-check-fill mr-2 text-lg"></i> <span id="btnSubmitCanvasText">Guardar Cambios de la Orden</span>';
+            }
+            return;
+        }
+
+        // Caso Creación de Orden Nueva (POST)
         const formData = new FormData(form);
 
         try {
@@ -1217,28 +1579,35 @@
             const data = await res.json();
 
             if (res.ok && data.success) {
-                // Éxito: abrir Swal con PDF
+                const nuevaId = data.orden_id || data.id || data.nro_orden;
+                const nroOrden = data.nro_orden || '';
+                resetearFormularioOrden();
                 Swal.fire({
                     title: '¡Orden Generada Exitosamente!',
-                    html: `La orden Nro <b>${data.nro_orden}</b> fue generada por un monto de <b>$${data.total_usd}</b>.<br><br>
-                           <a href="${data.pdf_url}" target="_blank" style="display:inline-block; padding:10px 20px; background-color:#0d9488; color:white; border-radius:8px; font-weight:bold; text-decoration:none; margin-top:10px;">
-                               <i class="bi bi-file-pdf"></i> Ver / Descargar PDF
-                           </a>`,
+                    html: `La orden Nro <b>${nroOrden}</b> fue generada por un monto de <b>$${data.total_usd}</b>.<br><br>
+                           <button type="button" onclick="descargarPdfConPreloader('${nuevaId}', '${nroOrden}')"
+                              style="display:inline-flex; align-items:center; justify-content:center; padding:12px 24px; background:linear-gradient(to right, #0d9488, #0f766e); color:white; border-radius:12px; font-weight:800; cursor:pointer; border:none; margin-top:10px; font-size:13px; box-shadow:0 4px 12px rgba(13,148,136,0.3);">
+                               <i class="bi bi-file-earmark-pdf-fill mr-2"></i> Descargar Formato PDF Oficial
+                           </button>`,
                     icon: 'success',
-                    confirmButtonText: 'Cerrar',
-                    confirmButtonColor: '#475569'
+                    confirmButtonText: 'Ir a Órdenes Emitidas',
+                    confirmButtonColor: '#0f766e'
                 }).then(() => {
-                    window.location.reload();
+                    if (typeof switchTab === 'function') {
+                        switchTab('ordenes');
+                    } else {
+                        window.location.reload();
+                    }
                 });
             } else {
                 Swal.fire({icon: 'error', title: 'Error', text: data.error || 'Error al procesar la orden de compra.'});
                 btn.disabled = false;
-                btn.innerHTML = '<i class="bi bi-file-earmark-check-fill mr-2 text-lg"></i>Emitir Orden de Compra Oficial';
+                btn.innerHTML = '<i class="bi bi-file-earmark-check-fill mr-2 text-lg"></i> <span id="btnSubmitCanvasText">Emitir Orden de Compra Oficial</span>';
             }
         } catch (err) {
             Swal.fire({icon: 'error', title: 'Error', text: 'Error de conexión con el servidor.'});
             btn.disabled = false;
-            btn.innerHTML = '<i class="bi bi-file-earmark-check-fill mr-2 text-lg"></i>Emitir Orden de Compra Oficial';
+            btn.innerHTML = '<i class="bi bi-file-earmark-check-fill mr-2 text-lg"></i> <span id="btnSubmitCanvasText">Emitir Orden de Compra Oficial</span>';
         }
     }
 
@@ -1637,7 +2006,7 @@ async function enviarMensajeAstrid() {
         
         if(data.success) {
             chatContainer.innerHTML += `<div class="flex items-start gap-3"><div class="w-8 h-8 rounded-full bg-indigo-500 flex-shrink-0 flex items-center justify-center text-white text-xs"><i class="bi bi-robot"></i></div><div class="bg-white border border-slate-200 rounded-2xl rounded-tl-none px-4 py-3 text-sm text-slate-700 shadow-sm max-w-[80%]">${(data.respuesta || '').replaceAll('\n', '<br>')}</div></div>`;
-            hablarAstrid(data.respuesta, data.audio_b64, data.audio_mime);
+            // Astrid en chat responde en texto puro (cerebro analítico sin voz)
         } else {
             chatContainer.innerHTML += `<div class="flex items-start gap-3"><div class="w-8 h-8 rounded-full bg-rose-500 flex-shrink-0 flex items-center justify-center text-white text-xs"><i class="bi bi-exclamation-triangle"></i></div><div class="bg-rose-50 border border-rose-200 rounded-2xl rounded-tl-none px-4 py-3 text-sm text-rose-700 shadow-sm max-w-[80%]">Error: ${data.error}</div></div>`;
         }
@@ -1653,19 +2022,18 @@ async function enviarMensajeAstrid() {
 
 let currentAstridAudio = null;
 function hablarAstrid(texto, audio_b64, audio_mime) {
-    // Si hay algún audio sonando previamente, detenerlo de inmediato
+    // Detener cualquier audio previo
     if (currentAstridAudio) {
         try { currentAstridAudio.pause(); currentAstridAudio.currentTime = 0; } catch(e){}
     }
-    // Cancelar cualquier síntesis sintética del navegador
     if ('speechSynthesis' in window) {
         window.speechSynthesis.cancel();
     }
-    // Reproducir única y exclusivamente la voz neural realista (Edge TTS / MP3)
     if (audio_b64) {
         try {
             const mime = audio_mime || 'audio/mp3';
             currentAstridAudio = new Audio(`data:${mime};base64,` + audio_b64);
+            currentAstridAudio.volume = 0.45;
             currentAstridAudio.play().catch(e => {
                 console.warn("Reproducción automática:", e);
             });
@@ -1676,19 +2044,31 @@ function hablarAstrid(texto, audio_b64, audio_mime) {
 async function reproducirBienvenidaAstrid() {
     try {
         const res = await fetch('/api/astrid/bienvenida');
-        // Verificar que la respuesta sea JSON (no HTML de error 502/504)
         const ct = res.headers.get('content-type') || '';
         if (!ct.includes('application/json')) {
             console.warn('Astrid bienvenida: servidor no listo aún (' + res.status + ')');
-            return; // Fallar silenciosamente — no bloquear el dashboard
+            return;
         }
         const data = await res.json();
-        if (data.success && data.audio_b64) {
-            hablarAstrid(data.saludo, data.audio_b64, data.audio_mime);
+        if (data.success) {
+            if (currentAstridAudio) {
+                try { currentAstridAudio.pause(); currentAstridAudio.currentTime = 0; } catch(e){}
+            }
+            if ('speechSynthesis' in window) {
+                window.speechSynthesis.cancel();
+            }
+            // Reproducir desde archivo resguardado en disco (URL directa) o base64
+            const audioSrc = data.audio_url || (data.audio_b64 ? `data:${data.audio_mime || 'audio/mp3'};base64,${data.audio_b64}` : null);
+            if (audioSrc) {
+                currentAstridAudio = new Audio(audioSrc);
+                currentAstridAudio.volume = 0.45; // Tono ejecutivo suave
+                currentAstridAudio.play().catch(e => {
+                    console.warn("Reproducción automática de bienvenida silenciada por política de navegador:", e);
+                });
+            }
         }
     } catch(e) {
         console.warn('No se pudo obtener el saludo automático de Astrid:', e.message);
-        // Error silencioso — el dashboard sigue funcionando con normalidad
     }
 }
 
@@ -1745,12 +2125,18 @@ async function cargarPerfilProveedor(rif) {
             } else {
                 ordenes.forEach(o => {
                     totalUsd += parseFloat(o.total_usd || 0);
+                    const nroRef = o.nro_orden || o.id;
                     html += `<tr>
-                        <td class="px-4 py-3 font-bold text-slate-700">${o.id}</td>
-                        <td class="px-4 py-3 text-slate-500">${o.fecha}</td>
-                        <td class="px-4 py-3 font-medium text-slate-600">${o.proyecto}</td>
+                        <td class="px-4 py-3 font-mono font-bold text-brand-700">${nroRef}</td>
+                        <td class="px-4 py-3 text-slate-500 font-medium">${o.fecha}</td>
+                        <td class="px-4 py-3 font-medium text-slate-700">${o.proyecto || 'GENERAL'}</td>
                         <td class="px-4 py-3 text-right font-black text-emerald-700">$${parseFloat(o.total_usd||0).toLocaleString('es-VE',{minimumFractionDigits:2})}</td>
-                        <td class="px-4 py-3 text-center"><a href="/api/pdf/${o.id}" target="_blank" class="text-brand-600 hover:text-brand-800 font-bold">PDF</a></td>
+                        <td class="px-4 py-3 text-center">
+                            <button type="button" onclick="descargarPdfConPreloader('${o.id}', '${nroRef}')"
+                                    class="inline-flex items-center px-2.5 py-1 bg-brand-50 hover:bg-brand-100 text-brand-800 rounded-xl font-bold text-xs transition-all shadow-sm" title="Descargar PDF">
+                                <i class="bi bi-file-earmark-pdf-fill mr-1 text-rose-600"></i> PDF
+                            </button>
+                        </td>
                     </tr>`;
                 });
                 document.getElementById('perfil_ultima_fecha').innerText = ordenes[0].fecha;
