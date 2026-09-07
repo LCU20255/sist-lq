@@ -1234,41 +1234,10 @@ def _generar_edge_tts(texto, voice="es-MX-DaliaNeural"):
             current_app.logger.warning(f"Error generando Edge TTS: {e}")
         return b""
 
-def _generar_hf_tts(texto):
-    """
-    Genera audio WAV via Hugging Face Inference API (facebook/mms-tts-spa).
-    Motor Open Source gratuito para español. Requiere HF_TOKEN en variables de entorno.
-    Retorna bytes de audio WAV o b"" si falla.
-    """
-    hf_token = os.getenv("HF_TOKEN", "")
-    hf_model = os.getenv("HF_TTS_MODEL", "facebook/mms-tts-spa")
-    if not hf_token:
-        return b""
-    try:
-        url = f"https://api-inference.huggingface.co/models/{hf_model}"
-        headers = {"Authorization": f"Bearer {hf_token}"}
-        r = requests.post(url, headers=headers, json={"inputs": texto}, timeout=18)
-        ct = r.headers.get("content-type", "")
-        if r.status_code == 200 and ("audio" in ct or len(r.content) > 1000):
-            if current_app:
-                current_app.logger.info(f"HF TTS OK: {len(r.content)} bytes ({hf_model})")
-            return r.content
-        else:
-            if current_app:
-                current_app.logger.warning(f"HF TTS fallo {r.status_code}: {r.text[:120]}")
-            return b""
-    except Exception as e:
-        if current_app:
-            current_app.logger.warning(f"HF TTS excepción: {e}")
-        return b""
-
 def generar_audio_astrid(texto):
     """
-    Motor TTS de Astrid con cascade inteligente:
-      1. Hugging Face Inference API (facebook/mms-tts-spa) — Open Source, español nativo
-      2. Edge TTS (es-MX-DaliaNeural) — Fallback neural gratuito e ilimitado
-    
-    0 descargas locales. 0 MB en disco. Ultra rápido. Sin cortes en producción.
+    Genera voz para Astrid con Microsoft Edge Neural TTS (es-MX-DaliaNeural).
+    100% gratuito, ilimitado, sin API keys, 0 MB en disco.
     Retorna: (audio_b64, audio_mime)
     """
     import base64
@@ -1278,33 +1247,16 @@ def generar_audio_astrid(texto):
     if not texto_limpio:
         return "", ""
 
-    texto_corto = texto_limpio[:1500]  # MMS-TTS tiene mejor calidad con textos cortos
-
-    # ── 1. Intentar Hugging Face TTS (español Open Source) ─────────────────────
-    try:
-        hf_audio = _generar_hf_tts(texto_corto)
-        if hf_audio:
-            mime = "audio/wav"
-            return base64.b64encode(hf_audio).decode("utf-8"), mime
-    except Exception as e:
-        if current_app:
-            current_app.logger.warning(f"HF TTS no disponible, usando Edge TTS: {e}")
-
-    # ── 2. Fallback: Edge TTS Neural (es-MX-DaliaNeural) ──────────────────────
     try:
         voz = os.getenv("TTS_VOICE", "es-MX-DaliaNeural")
-        audio_mp3 = _generar_edge_tts(texto_corto, voice=voz)
+        audio_mp3 = _generar_edge_tts(texto_limpio[:2000], voice=voz)
         if audio_mp3:
-            if current_app:
-                current_app.logger.info("Usando Edge TTS (fallback) — OK")
             return base64.b64encode(audio_mp3).decode("utf-8"), "audio/mp3"
     except Exception as err:
         if current_app:
-            current_app.logger.error(f"Error en Edge TTS fallback: {err}")
+            current_app.logger.error(f"Error en Edge TTS: {err}")
 
     return "", ""
-
-
 @bp.route("/api/astrid/bienvenida", methods=["GET", "POST"])
 def astrid_bienvenida():
     if "user_id" not in session:
@@ -1336,26 +1288,34 @@ def astrid_bienvenida():
 
 def consultar_ia_astrid(prompt_usuario, usuario="Loreidy"):
     """
-    Motor cognitivo de Astrid:
-    Utiliza OpenRouter API con modelos gratuitos de última generación (Nemotron, MiniMax, Gemma).
+    Motor cognitivo de Astrid.
+    Utiliza OpenRouter API con modelos gratuitos (sin chain-of-thought visible).
+    Limpia automáticamente cualquier razonamiento interno antes de retornar.
     """
     sys_prompt = (
         f"Eres Astrid, la asistente virtual super inteligente del sistema Facturador SIST-LQ. "
         f"Hablas en español latino cálido, eres profesional, muy amable y resolutiva. "
         f"El usuario con el que conversas se llama {usuario}. "
-        f"IMPORTANTE: Da respuestas claras, directas y concisas (máximo 2 a 3 oraciones o pasos breves) "
-        f"para que la respuesta hablada sea ágil e inmediata."
+        f"IMPORTANTE: Responde DIRECTAMENTE y de forma CONCISA (máximo 2 a 3 oraciones). "
+        f"NUNCA muestres tu proceso de razonamiento. NUNCA uses frases como 'thinking process', "
+        f"'let me analyze', 'step 1', etc. Solo da la respuesta final en español."
     )
-    
+
     openrouter_key = os.getenv("OPENROUTER_API_KEY")
     if not openrouter_key:
         raise RuntimeError("OPENROUTER_API_KEY no configurada en las variables de entorno.")
 
+    # Modelos en orden de preferencia — priorizamos los que NO exponen reasoning
     models = [
-        os.getenv("OPENROUTER_MODEL", "liquid/lfm-2.5-2.6b:free"),
+        "liquid/lfm-2.5-2.6b:free",
         "nvidia/nemotron-3.5-lightning:free",
-        "minimax/minimax-m3:free"
+        "minimax/minimax-m3:free",
+        os.getenv("OPENROUTER_MODEL", "liquid/lfm-2.5-2.6b:free"),
     ]
+    # Eliminar duplicados manteniendo orden
+    seen = set()
+    models = [m for m in models if not (m in seen or seen.add(m))]
+
     headers = {
         "Authorization": f"Bearer {openrouter_key}",
         "HTTP-Referer": "https://sis-fact-lq.onrender.com",
@@ -1370,25 +1330,45 @@ def consultar_ia_astrid(prompt_usuario, usuario="Loreidy"):
                     {"role": "user", "content": prompt_usuario}
                 ],
                 "temperature": 0.6,
-                "max_tokens": 250
+                "max_tokens": 300
             }
-            r = requests.post("https://openrouter.ai/api/v1/chat/completions", json=payload, headers=headers, timeout=12)
+            r = requests.post("https://openrouter.ai/api/v1/chat/completions", json=payload, headers=headers, timeout=15)
             if r.status_code == 200:
                 data = r.json()
                 choices = data.get("choices", [])
                 if choices and "message" in choices[0]:
                     msg = choices[0]["message"]
                     texto_resp = msg.get("content") or ""
-                    # Si el modelo incluye cadenas de razonamiento previo tipo thinking
-                    if not texto_resp and msg.get("reasoning"):
-                        texto_resp = msg.get("reasoning")
-                    if "Here's a thinking process:" in texto_resp:
-                        # Limpiar posible prefijo de pensamiento
-                        partes = re.split(r'\n\n(?=[¡¿A-Z])', texto_resp)
-                        if len(partes) > 1:
-                            texto_resp = partes[-1]
-                    if texto_resp.strip():
-                        return texto_resp.strip()
+
+                    # ── Limpieza de razonamiento interno (thinking models) ──────
+                    # Algunos modelos gratuitos exponen su chain-of-thought en el content
+                    # Eliminamos todo el bloque de razonamiento y nos quedamos con la respuesta
+                    patrones_reasoning = [
+                        r"Here'?s a thinking process:.*?(?=\n\n[^\n])",
+                        r"^\*\*Analyze.*?(?=\n\n[^\n])",
+                        r"^Let me (think|analyze|reason|consider).*?(?=\n\n[^\n])",
+                        r"^Thinking:.*?(?=\n\n[^\n])",
+                        r"^<think>.*?</think>",
+                    ]
+                    for patron in patrones_reasoning:
+                        texto_resp = re.sub(patron, '', texto_resp, flags=re.DOTALL | re.IGNORECASE | re.MULTILINE).strip()
+
+                    # Si el texto empieza con numeración tipo "1. **Analyze..." limpiamos
+                    if re.match(r'^\d+\.\s+\*\*', texto_resp):
+                        # Buscar primer párrafo que parezca respuesta en español
+                        parrafos = [p.strip() for p in texto_resp.split('\n\n') if p.strip()]
+                        for parrafo in reversed(parrafos):
+                            if re.search(r'[áéíóúñÁÉÍÓÚÑ¡¿]', parrafo) or len(parrafo) < 300:
+                                texto_resp = parrafo
+                                break
+
+                    # Limpiar markdown residual (**bold**, etc.)
+                    texto_resp = re.sub(r'\*\*([^*]+)\*\*', r'\1', texto_resp)
+                    texto_resp = re.sub(r'\*([^*]+)\*', r'\1', texto_resp)
+                    texto_resp = texto_resp.strip()
+
+                    if texto_resp:
+                        return texto_resp
             else:
                 if current_app:
                     current_app.logger.warning(f"OpenRouter modelo {model} retorno {r.status_code}: {r.text[:100]}")
