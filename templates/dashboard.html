@@ -1919,14 +1919,23 @@
             
             if(res.ok && data.success) {
                 const select = document.getElementById('canvas_proveedor_id');
-                const option = select.options[select.selectedIndex];
+                if (select && select.selectedIndex >= 0 && select.options[select.selectedIndex]) {
+                    const option = select.options[select.selectedIndex];
+                    option.text = `${data.proveedor.razon_social} (${data.proveedor.rif})`;
+                    option.dataset.beneficiario = data.proveedor.beneficiario || data.proveedor.razon_social;
+                    option.dataset.banco = data.proveedor.banco;
+                    option.dataset.cuenta = data.proveedor.num_cuenta;
+                    if (typeof actualizarFichaProveedorCanvas === 'function') actualizarFichaProveedorCanvas();
+                }
                 
-                option.text = `${data.proveedor.razon_social} (${data.proveedor.rif})`;
-                option.dataset.beneficiario = data.proveedor.beneficiario || data.proveedor.razon_social;
-                option.dataset.banco = data.proveedor.banco;
-                option.dataset.cuenta = data.proveedor.num_cuenta;
-                
-                actualizarFichaProveedorCanvas();
+                // Si estamos en la vista de perfil de proveedor, recargar perfil
+                const rifEl = document.getElementById('perfil_prov_rif');
+                if (rifEl && rifEl.innerText && rifEl.innerText.trim() === data.proveedor.rif) {
+                    cargarPerfilProveedor(data.proveedor.rif);
+                }
+                if (typeof cargarProveedoresModal === 'function') {
+                    cargarProveedoresModal();
+                }
                 
                 document.getElementById('modalEditarProveedor').classList.add('hidden');
                 Swal.fire({icon: 'success', title: 'Actualizado', text: 'Proveedor editado exitosamente.', timer: 2000, showConfirmButton: false});
@@ -2030,50 +2039,10 @@
 <script>
 
 let strNombreUsuario = '{{ session.get("user_nombre", "Loreidy") }}';
-async function enviarMensajeAstrid() {
-    const input = document.getElementById('astrid-input');
-    const msg = input.value.trim();
-    if(!msg) return;
-    input.value = '';
-    
-    const chatContainer = document.getElementById('astrid-chat-container');
-    chatContainer.innerHTML += `<div class="flex items-start gap-3 justify-end"><div class="bg-indigo-50 border border-indigo-100 rounded-2xl rounded-tr-none px-4 py-3 text-sm text-slate-700 shadow-sm max-w-[80%]">${msg}</div><div class="w-8 h-8 rounded-full bg-slate-200 flex-shrink-0 flex items-center justify-center text-slate-600 text-xs"><i class="bi bi-person-fill"></i></div></div>`;
-    chatContainer.scrollTop = chatContainer.scrollHeight;
-
-    // Loading bubble
-    const loaderId = 'loader-' + Date.now();
-    chatContainer.innerHTML += `<div id="${loaderId}" class="flex items-start gap-3"><div class="w-8 h-8 rounded-full bg-indigo-500 flex-shrink-0 flex items-center justify-center text-white text-xs"><i class="bi bi-robot"></i></div><div class="bg-white border border-slate-200 rounded-2xl rounded-tl-none px-4 py-3 text-sm text-slate-400 shadow-sm max-w-[80%] flex gap-1"><span class="animate-bounce">.</span><span class="animate-bounce delay-75">.</span><span class="animate-bounce delay-150">.</span></div></div>`;
-    chatContainer.scrollTop = chatContainer.scrollHeight;
-
-    try {
-        const res = await fetch('/api/astrid', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({prompt: msg})
-        });
-        // Verificar que la respuesta sea JSON antes de parsear
-        // (evita crash con páginas de error HTML como 502/504)
-        const ct = res.headers.get('content-type') || '';
-        if (!ct.includes('application/json')) {
-            throw new Error(`El servidor respondió con ${res.status} (${res.statusText || 'sin JSON'})`);
-        }
-        const data = await res.json();
-        if(document.getElementById(loaderId)) document.getElementById(loaderId).remove();
-        
-        if(data.success) {
-            chatContainer.innerHTML += `<div class="flex items-start gap-3"><div class="w-8 h-8 rounded-full bg-indigo-500 flex-shrink-0 flex items-center justify-center text-white text-xs"><i class="bi bi-robot"></i></div><div class="bg-white border border-slate-200 rounded-2xl rounded-tl-none px-4 py-3 text-sm text-slate-700 shadow-sm max-w-[85%] leading-relaxed">${formatearMensajeAstrid(data.respuesta)}</div></div>`;
-            // Astrid en chat responde en texto puro (cerebro analítico sin voz)
-        } else {
-            chatContainer.innerHTML += `<div class="flex items-start gap-3"><div class="w-8 h-8 rounded-full bg-rose-500 flex-shrink-0 flex items-center justify-center text-white text-xs"><i class="bi bi-exclamation-triangle"></i></div><div class="bg-rose-50 border border-rose-200 rounded-2xl rounded-tl-none px-4 py-3 text-sm text-rose-700 shadow-sm max-w-[80%]">Error: ${data.error}</div></div>`;
-        }
-    } catch(e) {
-        if(document.getElementById(loaderId)) document.getElementById(loaderId).remove();
-        const msgError = e.message && e.message.includes('502') ? 
-            'El servidor está iniciando. Espera unos segundos e intenta de nuevo.' :
-            'Fallo de conexión con Astrid.';
-        chatContainer.innerHTML += `<div class="flex items-start gap-3"><div class="w-8 h-8 rounded-full bg-rose-500 flex-shrink-0 flex items-center justify-center text-white text-xs"><i class="bi bi-exclamation-triangle"></i></div><div class="bg-rose-50 border border-rose-200 rounded-2xl rounded-tl-none px-4 py-3 text-sm text-rose-700 shadow-sm max-w-[80%]">${msgError}</div></div>`;
+async function enviarMensajeAstrid(msgParam) {
+    if (typeof window.enviarMensajeAstridGlobal === 'function') {
+        return window.enviarMensajeAstridGlobal(msgParam);
     }
-    chatContainer.scrollTop = chatContainer.scrollHeight;
 }
 
 function formatearMensajeAstrid(texto) {
@@ -2174,6 +2143,22 @@ function iniciarDictadoAstrid() {
 
 <script>
 
+function abrirModalEditarProveedorDesdePerfil(p) {
+    if (!p) return;
+    document.getElementById('edit_prov_id').value = p.id || '';
+    document.getElementById('edit_prov_razon').value = p.razon_social || '';
+    document.getElementById('edit_prov_rif').value = p.rif || '';
+    document.getElementById('edit_prov_banco').value = p.banco || p.banco_nombre || 'Banesco';
+    document.getElementById('edit_prov_cuenta').value = p.num_cuenta || p.cuenta_bancaria || '';
+    document.getElementById('modalEditarProveedor').classList.remove('hidden');
+}
+
+window.editarProveedor = function(id, razon, rif, dir, tel, banco, cuenta, tipo) {
+    abrirModalEditarProveedorDesdePerfil({
+        id: id, razon_social: razon, rif: rif, direccion: dir, telefono: tel, banco: banco, num_cuenta: cuenta
+    });
+};
+
 async function cargarPerfilProveedor(rif) {
     switchTab('perfil-proveedor');
     document.getElementById('perfil_prov_nombre').innerText = 'Cargando...';
@@ -2181,12 +2166,15 @@ async function cargarPerfilProveedor(rif) {
     document.getElementById('bodyPerfilOrdenes').innerHTML = '<tr><td colspan="5" class="text-center py-6 text-slate-400">Cargando datos...</td></tr>';
     
     try {
-        const res = await fetch('/api/proveedores/' + rif + '/perfil');
+        const res = await fetch('/api/proveedores/' + encodeURIComponent(rif) + '/perfil');
         const data = await res.json();
         if(data.success) {
             const p = data.proveedor;
+            window.proveedorActualPerfil = p;
             document.getElementById('perfil_prov_nombre').innerText = p.razon_social;
-            document.getElementById('perfil_prov_banco').innerText = p.banco_nombre || 'N/A';
+            const bancoStr = p.banco || p.banco_nombre || 'N/A';
+            const cuentaStr = (p.num_cuenta || p.cuenta_bancaria) ? ` | Cuenta: ${p.num_cuenta || p.cuenta_bancaria}` : '';
+            document.getElementById('perfil_prov_banco').innerText = bancoStr + cuentaStr;
             
             const ordenes = data.ordenes || [];
             document.getElementById('perfil_total_ordenes').innerText = ordenes.length;
@@ -2217,9 +2205,12 @@ async function cargarPerfilProveedor(rif) {
             document.getElementById('perfil_total_usd').innerText = '$' + totalUsd.toLocaleString('es-VE',{minimumFractionDigits:2});
             document.getElementById('bodyPerfilOrdenes').innerHTML = html;
             
-            document.getElementById('btn-editar-perfil-prov').onclick = () => {
-                editarProveedor(p.id, p.razon_social, p.rif, p.direccion, p.telefono, p.banco_nombre, p.cuenta_bancaria, p.tipo_cuenta);
-            };
+            const btnEdit = document.getElementById('btn-editar-perfil-prov');
+            if (btnEdit) {
+                btnEdit.onclick = () => {
+                    abrirModalEditarProveedorDesdePerfil(p);
+                };
+            }
         } else {
             Swal.fire('Error', 'Proveedor no encontrado', 'error');
             switchTab('proveedores');

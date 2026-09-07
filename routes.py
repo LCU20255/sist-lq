@@ -147,15 +147,17 @@ def format_decimal(value, places=2):
 # -----------------------------------------------------------------------------
 def registrar_movimiento(usuario_nombre, accion, modulo, descripcion, detalles=None):
     supabase = getattr(current_app, "supabase", None)
-    import datetime
-    hora_local = datetime.datetime.now() - datetime.timedelta(hours=4)
-    now_str = hora_local.strftime("%Y-%m-%d %H:%M:%S")
+    import datetime, uuid
+    now_ve = datetime.datetime.now()
+    now_iso = now_ve.strftime("%Y-%m-%dT%H:%M:%S-04:00")
+    mov_id = f"mov-{uuid.uuid4().hex[:10]}"
     mov_obj = {
+        "id": mov_id,
         "usuario_nombre": usuario_nombre or "Usuario SIST-LQ",
         "accion": accion,
         "modulo": modulo,
         "descripcion": descripcion,
-        "created_at": now_str
+        "created_at": now_iso
     }
     if detalles:
         mov_obj["detalles"] = detalles
@@ -895,6 +897,21 @@ def nuevo_proyecto():
         return jsonify({"success": False, "error": "El Nombre del proyecto es requerido"}), 400
 
     import datetime, unicodedata, re
+    nombre_norm = unicodedata.normalize('NFKD', nombre).strip().lower()
+
+    # Validación anti-duplicados por nombre de proyecto
+    if supabase:
+        try:
+            chk_nom = supabase.table("proyectos").select("id, nombre").ilike("nombre", nombre).execute()
+            if chk_nom.data and len(chk_nom.data) > 0:
+                return jsonify({"success": False, "error": f"Ya existe un proyecto registrado con el nombre '{nombre}'."}), 400
+        except Exception:
+            pass
+
+    for p in MOCK_PROYECTOS:
+        if unicodedata.normalize('NFKD', p.get("nombre", "")).strip().lower() == nombre_norm:
+            return jsonify({"success": False, "error": f"Ya existe un proyecto registrado con el nombre '{nombre}'."}), 400
+
     hoy = datetime.datetime.now()
     mes_anio = hoy.strftime('%m-%Y')
 
@@ -932,10 +949,93 @@ def nuevo_proyecto():
         codigo = f"{codigo[:50 - len(sufijo)]}{sufijo}"
 
     mock_id = f"proy-mock-{len(MOCK_PROYECTOS) + 1}"
-    proy_data = {"id": mock_id, "codigo": codigo, "nombre": nombre}
+    proy_data = {"id": mock_id, "codigo": codigo, "nombre": nombre, "estado": "activo"}
     MOCK_PROYECTOS.append(proy_data)
     registrar_movimiento(session.get("user_nombre", "Loreidy"), "CREAR_PROYECTO", "PROYECTOS", f"Proyecto creado: {nombre} [{codigo}]")
     return jsonify({"success": True, "id": mock_id, "codigo": codigo, "nombre": nombre})
+
+
+@bp.route("/api/proyectos/<proy_id>/editar", methods=["POST", "PUT"])
+def editar_proyecto(proy_id):
+    if "user_id" not in session:
+        return jsonify({"success": False, "error": "No autorizado"}), 401
+
+    req_data = request.get_json(silent=True) or request.form
+    nombre = req_data.get("nombre", "").strip()
+    codigo = req_data.get("codigo", "").strip().upper()
+    estado = req_data.get("estado", "activo").strip().lower()
+
+    if not nombre or not codigo:
+        return jsonify({"success": False, "error": "Nombre y código son requeridos."}), 400
+
+    import unicodedata
+    nombre_norm = unicodedata.normalize('NFKD', nombre).strip().lower()
+
+    supabase = getattr(current_app, "supabase", None)
+    if supabase:
+        try:
+            chk = supabase.table("proyectos").select("id").ilike("nombre", nombre).neq("id", proy_id).execute()
+            if chk.data:
+                return jsonify({"success": False, "error": f"Ya existe otro proyecto registrado con el nombre '{nombre}'."}), 400
+
+            data = {"nombre": nombre, "codigo": codigo, "estado": estado}
+            res = supabase.table("proyectos").update(data).eq("id", proy_id).execute()
+            if res.data:
+                usuario_actual = session.get("user_nombre", "Loreidy")
+                registrar_movimiento(usuario_actual, "EDITAR_PROYECTO", "PROYECTOS", f"Proyecto editado: {nombre} [{codigo}]")
+                return jsonify({"success": True, "proyecto": res.data[0]})
+        except Exception as e:
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    # Mock DB
+    for p in MOCK_PROYECTOS:
+        if str(p.get("id")) != str(proy_id) and unicodedata.normalize('NFKD', p.get("nombre", "")).strip().lower() == nombre_norm:
+            return jsonify({"success": False, "error": f"Ya existe otro proyecto registrado con el nombre '{nombre}'."}), 400
+
+    for p in MOCK_PROYECTOS:
+        if str(p.get("id")) == str(proy_id):
+            p["nombre"] = nombre
+            p["codigo"] = codigo
+            p["estado"] = estado
+            usuario_actual = session.get("user_nombre", "Loreidy")
+            registrar_movimiento(usuario_actual, "EDITAR_PROYECTO", "PROYECTOS", f"Proyecto editado: {nombre} [{codigo}]")
+            return jsonify({"success": True, "proyecto": p})
+
+    return jsonify({"success": False, "error": "Proyecto no encontrado"}), 404
+
+
+@bp.route("/api/proyectos/<proy_id>/eliminar", methods=["POST", "DELETE"])
+def eliminar_proyecto(proy_id):
+    if "user_id" not in session:
+        return jsonify({"success": False, "error": "No autorizado"}), 401
+
+    supabase = getattr(current_app, "supabase", None)
+    if supabase:
+        try:
+            chk_ords = supabase.table("ordenes_compra").select("id").eq("proyecto_id", proy_id).limit(1).execute()
+            if chk_ords.data and len(chk_ords.data) > 0:
+                return jsonify({
+                    "success": False,
+                    "error": "No se puede eliminar este proyecto porque tiene órdenes de compra asociadas. Puedes cambiar su estado a 'Inactivo' en la opción de Editar."
+                }), 400
+
+            res = supabase.table("proyectos").delete().eq("id", proy_id).execute()
+            usuario_actual = session.get("user_nombre", "Loreidy")
+            registrar_movimiento(usuario_actual, "ELIMINAR_PROYECTO", "PROYECTOS", f"Proyecto eliminado: ID {proy_id}")
+            return jsonify({"success": True, "mensaje": "Proyecto eliminado exitosamente."})
+        except Exception as e:
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    # Mock DB delete
+    global MOCK_PROYECTOS
+    p_del = next((p for p in MOCK_PROYECTOS if str(p.get("id")) == str(proy_id)), None)
+    if p_del:
+        MOCK_PROYECTOS = [p for p in MOCK_PROYECTOS if str(p.get("id")) != str(proy_id)]
+        usuario_actual = session.get("user_nombre", "Loreidy")
+        registrar_movimiento(usuario_actual, "ELIMINAR_PROYECTO", "PROYECTOS", f"Proyecto eliminado: {p_del.get('nombre')}")
+        return jsonify({"success": True, "mensaje": "Proyecto eliminado exitosamente."})
+
+    return jsonify({"success": False, "error": "Proyecto no encontrado"}), 404
 
 
 @bp.route("/api/items", methods=["GET"])
@@ -1760,7 +1860,7 @@ def api_listar_notificaciones():
     movs = []
     if supabase:
         try:
-            res = supabase.table("historial_movimientos").select("*").order("created_at", desc=True).limit(35).execute()
+            res = supabase.table("historial_movimientos").select("*").order("created_at", desc=True).limit(50).execute()
             if res.data:
                 movs = res.data
         except Exception:
@@ -1769,7 +1869,7 @@ def api_listar_notificaciones():
         movs = MOCK_MOVIMIENTOS
 
     notificaciones = []
-    leidas = session.get("notificaciones_leidas", [])
+    leidas = set(str(x) for x in session.get("notificaciones_leidas", []))
 
     for m in movs:
         u_nombre = m.get("usuario_nombre", "")
@@ -1777,9 +1877,14 @@ def api_listar_notificaciones():
         if u_nombre and u_nombre.strip().lower() == usuario_actual.strip().lower():
             continue
 
-        accion = m.get("accion", "")
+        accion = (m.get("accion") or "").upper()
         desc = m.get("descripcion", "")
-        m_id = str(m.get("id", f"{accion}_{m.get('created_at')}"))
+
+        # FILTRO DE RUIDO: Omitir logins/logouts e inicios/cierres de sesión rutinarios
+        if any(k in accion for k in ["LOGIN", "LOGOUT", "INICIALIZACION"]) or any(k in desc.lower() for k in ["inicio de sesión", "inicio de sesion", "cierre de sesión", "cierre de sesion"]):
+            continue
+
+        m_id = str(m.get("id") or f"{accion}_{m.get('created_at')}")
 
         icono = "bi-bell-fill"
         color_bg = "bg-brand-50 text-brand-700"
@@ -1800,6 +1905,10 @@ def api_listar_notificaciones():
             icono = "bi-building"
             color_bg = "bg-amber-100 text-amber-800"
             titulo = f"Proveedor ({u_nombre})"
+        elif "PROYECTO" in accion:
+            icono = "bi-briefcase-fill"
+            color_bg = "bg-indigo-100 text-indigo-800"
+            titulo = f"Proyecto ({u_nombre})"
         else:
             titulo = f"Actividad de {u_nombre}"
 
@@ -1827,20 +1936,29 @@ def api_marcar_notificaciones_leidas():
     if "user_id" not in session:
         return jsonify({"success": False, "error": "No autorizado"}), 401
 
+    req_data = request.get_json(silent=True) or {}
+    client_ids = [str(x) for x in req_data.get("ids", []) if x]
+
     supabase = getattr(current_app, "supabase", None)
     movs_ids = []
     if supabase:
         try:
-            res = supabase.table("historial_movimientos").select("id").limit(50).execute()
-            if res.data: movs_ids = [str(r["id"]) for r in res.data]
+            res = supabase.table("historial_movimientos").select("id, accion, created_at").limit(100).execute()
+            if res.data:
+                for r in res.data:
+                    if r.get("id"): movs_ids.append(str(r["id"]))
+                    movs_ids.append(f"{r.get('accion')}_{r.get('created_at')}")
         except Exception:
-            movs_ids = [str(m.get("id")) for m in MOCK_MOVIMIENTOS]
-    else:
-        movs_ids = [str(m.get("id")) for m in MOCK_MOVIMIENTOS]
+            pass
 
-    session["notificaciones_leidas"] = list(set(session.get("notificaciones_leidas", []) + movs_ids))
+    for m in MOCK_MOVIMIENTOS:
+        if m.get("id"): movs_ids.append(str(m["id"]))
+        movs_ids.append(f"{m.get('accion')}_{m.get('created_at')}")
+
+    todas_leidas = list(set(session.get("notificaciones_leidas", []) + movs_ids + client_ids))
+    session["notificaciones_leidas"] = todas_leidas
     session.modified = True
-    return jsonify({"success": True})
+    return jsonify({"success": True, "total_leidas": len(todas_leidas)})
 
 def generar_audio_astrid(texto):
     """
@@ -2081,11 +2199,15 @@ def obtener_contexto_en_vivo_astrid(prompt_usuario=None, accion_resultado=None):
         "accion_ejecutada": accion_resultado
     }
     
-    info_bcv = getattr(current_app, "info_bcv", None)
-    if info_bcv and hasattr(info_bcv, "tasa_usd"):
-        contexto["tasa_bcv"] = float(info_bcv.tasa_usd)
-    if info_bcv and hasattr(info_bcv, "tasa_eur"):
-        contexto["tasa_eur"] = float(info_bcv.tasa_eur)
+    try:
+        info_bcv = obtener_tasa_bcv()
+        contexto["tasa_bcv"] = float(info_bcv.get("tasa_usd", 813.74))
+        contexto["tasa_eur"] = float(info_bcv.get("tasa_eur", 945.65))
+        contexto["tasa_promedio"] = float(info_bcv.get("tasa_promedio", 879.69))
+    except Exception:
+        contexto["tasa_bcv"] = 813.74
+        contexto["tasa_eur"] = 945.65
+        contexto["tasa_promedio"] = 879.69
 
     if supabase:
         try:
@@ -2190,10 +2312,11 @@ def obtener_contexto_en_vivo_astrid(prompt_usuario=None, accion_resultado=None):
     return contexto
 
 
-def consultar_ia_astrid(prompt_usuario, usuario="Loreidy"):
+def consultar_ia_astrid(prompt_usuario, usuario="Loreidy", historial=None):
     """
     Motor cognitivo integral de Astrid con ACCESO TOTAL a precios, costos, catálogo,
     órdenes de compra, proveedores, auditoría histórica y capacidad operativa de modificación.
+    Soporta memoria conversacional multiturno (historial).
     """
     # 1. Detectar y ejecutar acciones operativas si el usuario solicitó una modificación
     accion_res = detectar_y_ejecutar_accion_astrid(prompt_usuario, usuario)
@@ -2201,10 +2324,17 @@ def consultar_ia_astrid(prompt_usuario, usuario="Loreidy"):
     # 2. Extraer contexto exhaustivo en vivo
     ctx = obtener_contexto_en_vivo_astrid(prompt_usuario, accion_resultado=accion_res)
     tasa = ctx["tasa_bcv"]
+    tasa_eur = ctx["tasa_eur"]
+    tasa_prom = ctx.get("tasa_promedio", round((tasa + tasa_eur) / 2.0, 4))
+
+    # 3. Consultar motor analítico local especializado para respuesta instantánea (ruido, saludos, reportes con gráficas, precios, anáforas)
+    resp_local = _responder_con_datos_locales_astrid(prompt_usuario, ctx, accion_res, usuario, historial=historial)
+    if not resp_local.startswith(f"Hola {usuario}. Soy Astrid, el asistente inteligente y cerebro analítico"):
+        return resp_local
 
     # Catálogo de precios y costos
     items_lines = [
-        f"  * '{it.get('descripcion')}' ({it.get('unidad', 'UND')}): ${float(it.get('precio_referencial_usd') or 0):,.2f} USD (aprox. Bs. {float(it.get('precio_referencial_usd') or 0) * tasa:,.2f} a tasa BCV)"
+        f"  * '{it.get('descripcion')}' ({it.get('unidad', 'UND')}): ${float(it.get('precio_referencial_usd') or 0):,.2f} USD (aprox. Bs. {float(it.get('precio_referencial_usd') or 0) * tasa:,.2f} a tasa BCV | Bs. {float(it.get('precio_referencial_usd') or 0) * tasa_prom:,.2f} a tasa promedio)"
         for it in ctx["items_catalogo"]
     ]
     texto_items = f"{len(ctx['items_catalogo'])} ítems en catálogo de costos y precios:\n" + ("\n".join(items_lines) if items_lines else "Sin ítems registrados.")
@@ -2271,7 +2401,7 @@ def consultar_ia_astrid(prompt_usuario, usuario="Loreidy"):
         f"TIENES ACCESO TOTAL Y PERMISOS DE MODIFICACIÓN EN TODA LA BASE DE DATOS DEL SISTEMA (precios, costos, catálogo, órdenes, proveedores, auditoría, usuarios y reportes).\n\n"
         f"{texto_accion}"
         f"--- DATOS VIVOS DEL SISTEMA EN TIEMPO REAL ---\n"
-        f"1. TASAS OFICIALES BCV: USD = ${ctx['tasa_bcv']:,.2f} Bs | EUR = €{ctx['tasa_eur']:,.2f} Bs\n\n"
+        f"1. TASAS OFICIALES BCV EN VIVO: USD = ${tasa:,.2f} Bs | EUR = €{tasa_eur:,.2f} Bs | PROMEDIO = ${tasa_prom:,.2f} Bs\n\n"
         f"2. CATÁLOGO DE ÍTEMS, PRECIOS Y COSTOS:\n{texto_items}\n\n"
         f"3. COSTOS FACTURADOS EN ÓRDENES:\n{texto_detalles}\n\n"
         f"4. ÓRDENES DE COMPRA:\n{texto_ord}\n\n"
@@ -2282,13 +2412,13 @@ def consultar_ia_astrid(prompt_usuario, usuario="Loreidy"):
         f"--- REGLAS DE RESPUESTA ---\n"
         f"1. Responde de forma ejecutiva, directa, cálida y profesional en español latino.\n"
         f"2. NUNCA digas que no tienes acceso a la información; TIENES ACCESO TOTAL a todos los datos vivos en este contexto.\n"
-        f"3. Si el usuario pregunta por precios o costos (ej. 'dime qué costo tiene el drill', 'precio de la tela', 'cuánto cuesta X'):\n"
-        f"   Responde con el precio exacto en USD y su valor convertido en Bolívares según la tasa BCV oficial (${ctx['tasa_bcv']:,.2f} Bs/USD).\n"
-        f"4. Si el usuario te pregunta por la última interacción, actividad o movimiento de algún usuario (ej. Loreidy Quiñonez, Ramón Rivas, Administrador):\n"
+        f"3. Si el usuario pregunta por precios o costos (ej. 'dime qué costo tiene el drill', 'precio de la cama', 'cuánto cuesta X'):\n"
+        f"   Responde con el precio exacto en USD y su valor convertido en Bolívares según la tasa BCV oficial (${tasa:,.2f} Bs/USD) y a tasa promedio (${tasa_prom:,.2f} Bs/USD) si lo pide.\n"
+        f"4. Mantén la continuidad de la conversación (memoria multiturno). Si el usuario hace una pregunta de seguimiento breve como 'y a tasa promedio?', 'y en euros?', 'y quién la emitió?', responde sobre el mismo ítem u orden que se venía discutiendo en los turnos anteriores.\n"
+        f"5. Si el usuario te pregunta por la última interacción, actividad o movimiento de algún usuario (ej. Loreidy Quiñonez, Ramón Rivas, Administrador):\n"
         f"   Revisa la sección de AUDITORÍA y responde con la fecha, hora exacta y qué acción realizó.\n"
-        f"5. Si el usuario te pide un reporte o informe (de órdenes, gastos, proveedores o auditoría):\n"
+        f"6. Si el usuario te pide un reporte o informe (de órdenes, gastos, proveedores o auditoría):\n"
         f"   Genera el resumen estructurado en tu respuesta y proporciona el enlace de descarga directa en Excel usando exactamente el formato Markdown: [📥 Descargar Reporte (.xlsx)](/api/exportar/...).\n"
-        f"6. Si se acaba de realizar una modificación en la base de datos, confírmala con exactitud indicando los nuevos valores guardados.\n"
         f"7. NUNCA muestres tu proceso de razonamiento interno (<think>, etc.)."
     )
 
@@ -2311,14 +2441,22 @@ def consultar_ia_astrid(prompt_usuario, usuario="Loreidy"):
             "X-Title": "SIST-LQ Astrid Assistant"
         }
 
+        # Armar mensajes con historial conversacional
+        hist_messages = []
+        if historial:
+            for h in historial[-6:]:
+                role = "assistant" if h.get("role") == "assistant" else "user"
+                content = str(h.get("content", "")).strip()
+                if content:
+                    hist_messages.append({"role": role, "content": content})
+
+        payload_messages = [{"role": "system", "content": sys_prompt}] + hist_messages + [{"role": "user", "content": prompt_usuario}]
+
         for model in models:
             try:
                 payload = {
                     "model": model,
-                    "messages": [
-                        {"role": "system", "content": sys_prompt},
-                        {"role": "user", "content": prompt_usuario}
-                    ],
+                    "messages": payload_messages,
                     "temperature": 0.3,
                     "max_tokens": 700
                 }
@@ -2351,17 +2489,22 @@ def consultar_ia_astrid(prompt_usuario, usuario="Loreidy"):
                 if current_app:
                     current_app.logger.warning(f"Excepción en OpenRouter ({model}): {e}")
 
-    # Fallback garantizado: Motor cognitivo local con datos vivos del sistema
-    return _responder_con_datos_locales_astrid(prompt_usuario, ctx, accion_res, usuario)
+    # Fallback garantizado: Motor cognitivo local con datos vivos del sistema y contexto histórico
+    return _responder_con_datos_locales_astrid(prompt_usuario, ctx, accion_res, usuario, historial=historial)
 
 
-def _responder_con_datos_locales_astrid(prompt_usuario, ctx, accion_res, usuario):
+def _responder_con_datos_locales_astrid(prompt_usuario, ctx, accion_res, usuario, historial=None):
     """
     Motor analítico local con acceso total a los datos vivos del sistema cuando el modelo
-    externo está en mantenimiento o bajo límites de cuota (rate limits).
+    externo está en mantenimiento o bajo límites de cuota (rate limits), con soporte
+    completo para memoria conversacional multiturno (preguntas de seguimiento y anáforas),
+    reportes ejecutivos con gráficas interactivas Chart.js y detección de ruido.
     """
-    p_lower = prompt_usuario.lower()
-    tasa = ctx.get("tasa_bcv", 804.8109)
+    p_clean = prompt_usuario.strip()
+    p_lower = p_clean.lower()
+    tasa_usd = ctx.get("tasa_bcv", 813.74)
+    tasa_eur = ctx.get("tasa_eur", 945.65)
+    tasa_prom = ctx.get("tasa_promedio", round((tasa_usd + tasa_eur) / 2.0, 4))
 
     # 1. Si se ejecutó una acción operativa en base de datos:
     if accion_res and accion_res.get("ejecutada"):
@@ -2371,8 +2514,172 @@ def _responder_con_datos_locales_astrid(prompt_usuario, ctx, accion_res, usuario
             f"Los datos han sido actualizados en tiempo real y el movimiento quedó asentado en la auditoría del sistema."
         )
 
-    # 2. Solicitud de reportes o descargas Excel:
-    if any(k in p_lower for k in ["reporte", "excel", "descarga", "descargar", "informe", "exportar"]):
+    # 2. Detección de pruebas / ruido / caracteres repetidos (ej. "ggg", "asdf", "test", etc.)
+    es_repetido = bool(re.match(r'^(.)\1+$', p_lower))
+    palabras_prueba = ["ggg", "asdf", "asdasd", "qwerty", "zxcv", "123", "test", "prueba", "probando", "...", "???"]
+    es_ruido = es_repetido or p_lower in palabras_prueba or (len(p_lower) <= 3 and p_lower not in ["usd", "eur", "bcv", "ver", "hoy", "mas", "más", "cta", "rif"])
+
+    if es_ruido:
+        return (
+            f"Hola {usuario}. He recibido tu mensaje (`{p_clean}`), pero parece ser una prueba o estar incompleto.\n\n"
+            f"¿En qué puedo orientarte hoy? Puedes consultarme sobre:\n"
+            f"• **Costos y precios:** *'¿Cuánto cuesta la cama matrimonial a tasa promedio?'*\n"
+            f"• **Reportes con gráficas:** *'Dame un reporte con gráficas del estatus actual de mis proveedores'*\n"
+            f"• **Compras y órdenes:** *'¿Cuáles son las últimas órdenes emitidas?'*\n"
+            f"• **Directorio bancario:** *'Muéstrame los proveedores y sus cuentas bancarias'*."
+        )
+
+    # 3. Detección de saludo corto ("hola", "buenos días", "buenas tardes", "saludos")
+    saludos_exactos = ["hola", "buen dia", "buenos dias", "buen día", "buenos días", "buenas tardes", "buenas noches", "saludos", "que tal", "qué tal", "hey", "hola astrid"]
+    if p_lower in saludos_exactos or p_lower.startswith("hola astrid"):
+        return (
+            f"¡Hola, {usuario}! Un gusto saludarte. Soy Astrid, el asistente inteligente y cerebro analítico del Facturador SIST-LQ.\n\n"
+            f"Tengo acceso total y en tiempo real a precios de catálogo, órdenes emitidas, proveedores, trazabilidad y tasas oficiales BCV. ¿Qué deseas consultar hoy?"
+        )
+
+    # 4. Reportes con gráficas y análisis visual de proveedores
+    peticion_grafica = any(k in p_lower for k in ["grafica", "gráfica", "graficas", "gráficas", "grafico", "gráfico", "graficos", "gráficos", "chart", "visual"])
+    peticion_reporte = any(k in p_lower for k in ["reporte", "informe", "estatus", "analisis", "análisis", "resumen ejecutivo", "balance"])
+
+    if (peticion_grafica or peticion_reporte) and any(k in p_lower for k in ["proveedor", "proveedores", "suplidor"]):
+        provs = ctx.get("proveedores_detalle", [])
+        ords = ctx.get("ordenes_recientes", [])
+        
+        gastos_prov = {}
+        ordenes_prov = {}
+        for o in ords:
+            nom_p = o.get("proveedor", "Proveedor")
+            monto = float(o.get("total_usd") or 0.0)
+            gastos_prov[nom_p] = gastos_prov.get(nom_p, 0.0) + monto
+            ordenes_prov[nom_p] = ordenes_prov.get(nom_p, 0) + 1
+
+        for p in provs:
+            nom = p.get("razon_social")
+            if nom and nom not in gastos_prov:
+                gastos_prov[nom] = 0.0
+                ordenes_prov[nom] = 0
+
+        prov_ordenados = sorted(gastos_prov.items(), key=lambda x: x[1], reverse=True)
+        top_nombre, top_monto = prov_ordenados[0] if prov_ordenados else ("N/A", 0.0)
+
+        chart_labels = [item[0] for item in prov_ordenados[:6]]
+        chart_data = [round(item[1], 2) for item in prov_ordenados[:6]]
+        if sum(chart_data) == 0:
+            chart_data = [1 for _ in chart_labels]
+
+        chart_config = {
+            "type": "doughnut",
+            "title": "Distribución de Facturación por Proveedor (USD)",
+            "labels": chart_labels,
+            "data": chart_data
+        }
+        chart_json = json.dumps(chart_config)
+
+        lineas_det = []
+        for nom, monto in prov_ordenados:
+            n_o = ordenes_prov.get(nom, 0)
+            banco = next((p.get("banco", "N/A") for p in provs if p.get("razon_social") == nom), "N/A")
+            lineas_det.append(f"• **{nom}** (Banco: {banco}): **${monto:,.2f} USD** ({n_o} {'orden emitida' if n_o == 1 else 'órdenes emitidas'})")
+
+        return (
+            f"📊 **Reporte Ejecutivo y Estatus de Proveedores en Tiempo Real**\n\n"
+            f"Actualmente contamos con **{len(provs)} proveedores** registrados en el directorio:\n\n"
+            f"• **Volumen Facturado Acumulado:** **${ctx['total_usd']:,.2f} USD** (aprox. **Bs. {ctx['total_bs']:,.2f}** a tasa BCV)\n"
+            f"• **Mayor Volumen de Compras:** **{top_nombre}** con **${top_monto:,.2f} USD**\n"
+            f"• **Tasa Oficial BCV:** ${tasa_usd:,.2f} Bs/USD | **Promedio:** ${tasa_prom:,.2f} Bs\n\n"
+            f":::chart {chart_json}:::\n\n"
+            f"**Estatus y Desglose por Proveedor:**\n"
+            + "\n".join(lineas_det) +
+            f"\n\n*(Puedes exportar el directorio oficial completo con: [📥 Descargar Directorio de Proveedores (.xlsx)](/api/exportar/proveedores))*"
+        )
+
+    # 5. Reportes con gráficas de órdenes y gastos
+    if peticion_grafica and any(k in p_lower for k in ["orden", "ordenes", "órdenes", "compra", "compras", "gasto", "gastos", "factura"]):
+        ords = ctx.get("ordenes_recientes", [])
+        labels_o = [f"Ord #{o.get('nro')}" for o in ords[:6]]
+        data_o = [round(float(o.get('total_usd') or 0), 2) for o in ords[:6]]
+
+        chart_config = {
+            "type": "bar",
+            "title": "Monto de Órdenes Recientes (USD)",
+            "labels": labels_o if labels_o else ["Sin órdenes"],
+            "data": data_o if data_o else [0]
+        }
+        chart_json = json.dumps(chart_config)
+
+        return (
+            f"📈 **Reporte Gráfico de Órdenes y Compras en Tiempo Real**\n\n"
+            f"• **Total Órdenes Emitidas:** {ctx['total_ordenes']}\n"
+            f"• **Volumen Facturado:** **${ctx['total_usd']:,.2f} USD** (Bs. {ctx['total_bs']:,.2f})\n"
+            f"• **Tasa Oficial BCV:** ${tasa_usd:,.2f} Bs/USD\n\n"
+            f":::chart {chart_json}:::\n\n"
+            f"Puedes descargar el reporte detallado en: [📥 Descargar Reporte de Órdenes (.xlsx)](/api/exportar/ordenes)."
+        )
+
+    # 6. Búsqueda contextual de ítems en el historial previo (últimos turnos) si la pregunta es un seguimiento
+    item_en_contexto = None
+    items_catalogo = ctx.get("items_catalogo", [])
+
+    # Primero verificar si el ítem está mencionado en la pregunta actual
+    for it in items_catalogo:
+        desc_limpia = it.get("descripcion", "").lower()
+        if desc_limpia and (desc_limpia in p_lower or any(pal in p_lower for pal in desc_limpia.split() if len(pal) > 3)):
+            item_en_contexto = it
+            break
+
+    # Si NO está en la pregunta actual, buscar en el historial de atrás hacia adelante
+    if not item_en_contexto and historial:
+        for turn in reversed(historial):
+            texto_turn = (turn.get("content") or "").lower()
+            for it in items_catalogo:
+                desc_limpia = it.get("descripcion", "").lower()
+                if desc_limpia and (desc_limpia in texto_turn or any(pal in texto_turn for pal in desc_limpia.split() if len(pal) > 3)):
+                    item_en_contexto = it
+                    break
+            if item_en_contexto:
+                break
+
+    # 7. Pregunta específica sobre TASA PROMEDIO o conversión a promedio
+    if any(k in p_lower for k in ["promedio", "tasa promedio", "en promedio"]):
+        if item_en_contexto:
+            p_usd = float(item_en_contexto.get("precio_referencial_usd") or 0)
+            p_bs = round(p_usd * tasa_prom, 2)
+            return (
+                f"Calculando a **tasa promedio** oficial BCV (${tasa_prom:,.2f} Bs/USD — promedio oficial entre USD y EUR):\n\n"
+                f"• **{item_en_contexto.get('descripcion')}** ({item_en_contexto.get('unidad', 'UND')}): **${p_usd:,.2f} USD** equivale a aprox. **Bs. {p_bs:,.2f}**.\n\n"
+                f"*(Tasa USD Oficial: ${tasa_usd:,.2f} Bs | Tasa EUR Oficial: €{tasa_eur:,.2f} Bs | Tasa Promedio: ${tasa_prom:,.2f} Bs)*"
+            )
+        else:
+            return (
+                f"La **tasa promedio oficial BCV** vigente en el sistema es de **${tasa_prom:,.2f} Bs/USD**.\n\n"
+                f"• **Tasa USD Oficial:** ${tasa_usd:,.2f} Bs\n"
+                f"• **Tasa EUR Oficial:** €{tasa_eur:,.2f} Bs\n\n"
+                f"Puedes indicarme cualquier producto del catálogo (ej. *'cuánto cuesta la cama matrimonial a tasa promedio?'*) y te calcularé la conversión exacta."
+            )
+
+    # 8. Pregunta específica sobre TASA EUR o conversión a euros
+    if any(k in p_lower for k in ["euro", "euros", "a tasa euro", "en euros", "en eur"]):
+        if item_en_contexto:
+            p_usd = float(item_en_contexto.get("precio_referencial_usd") or 0)
+            p_bs = round(p_usd * tasa_eur, 2)
+            return (
+                f"Calculando con la **tasa EUR oficial BCV** (€{tasa_eur:,.2f} Bs):\n\n"
+                f"• **{item_en_contexto.get('descripcion')}** ({item_en_contexto.get('unidad', 'UND')}): **${p_usd:,.2f} USD** equivale a aprox. **Bs. {p_bs:,.2f}**."
+            )
+        else:
+            return f"La **tasa EUR oficial BCV** vigente cargada en el sistema es de **€{tasa_eur:,.2f} Bs** (USD: ${tasa_usd:,.2f} Bs)."
+
+    # 9. Pregunta específica sobre TASA USD / BOLÍVARES
+    if any(k in p_lower for k in ["en dolares", "en dólares", "a tasa bcv", "en bolivares", "en bolívares", "en bs"]) and item_en_contexto:
+        p_usd = float(item_en_contexto.get("precio_referencial_usd") or 0)
+        p_bs = round(p_usd * tasa_usd, 2)
+        return (
+            f"Calculando con la **tasa USD oficial BCV** (${tasa_usd:,.2f} Bs/USD):\n\n"
+            f"• **{item_en_contexto.get('descripcion')}** ({item_en_contexto.get('unidad', 'UND')}): **${p_usd:,.2f} USD** equivale a aprox. **Bs. {p_bs:,.2f}**."
+        )
+
+    # 10. Solicitud de reportes o descargas Excel:
+    if any(k in p_lower for k in ["excel", "descarga", "descargar", "exportar", "plantilla"]):
         return (
             f"Hola {usuario}. Con gusto puedo facilitarte los enlaces oficiales para generar y descargar los reportes del sistema en formato Excel (.xlsx):\n\n"
             f"• [📥 Descargar Reporte de Órdenes (.xlsx)](/api/exportar/ordenes)\n"
@@ -2382,31 +2689,34 @@ def _responder_con_datos_locales_astrid(prompt_usuario, ctx, accion_res, usuario
             f"Cada archivo contiene la información consolidada con formato contable."
         )
 
-    # 3. Preguntas de precios, costos, catálogo:
-    if any(k in p_lower for k in ["precio", "costo", "catálogo", "catalogo", "cuánto", "cuanto", "vale", "cotiz", "drill", "tela"]):
-        items = ctx.get("items_catalogo", [])
+    # 7. Preguntas de precios, costos, catálogo:
+    if any(k in p_lower for k in ["precio", "costo", "catálogo", "catalogo", "cuánto", "cuanto", "vale", "cotiz"]) or item_en_contexto:
         coincidencias = []
-        for it in items:
-            desc = it.get("descripcion", "")
-            if any(w in desc.lower() for w in p_lower.split() if len(w) > 3):
-                coincidencias.append(it)
+        if item_en_contexto:
+            coincidencias = [item_en_contexto]
+        else:
+            for it in items_catalogo:
+                desc = it.get("descripcion", "")
+                if any(w in desc.lower() for w in p_lower.split() if len(w) > 3):
+                    coincidencias.append(it)
 
-        if not coincidencias and items:
-            coincidencias = items[:6]
+        if not coincidencias and items_catalogo:
+            coincidencias = items_catalogo[:6]
 
         if coincidencias:
             lineas = []
             for it in coincidencias[:6]:
                 p_usd = float(it.get("precio_referencial_usd") or 0)
-                p_bs = p_usd * tasa
-                lineas.append(f"• **{it.get('descripcion')}** ({it.get('unidad', 'UND')}): **${p_usd:,.2f} USD** (aprox. **Bs. {p_bs:,.2f}** a tasa oficial BCV de ${tasa:,.2f} Bs/USD)")
+                p_bs = round(p_usd * tasa_usd, 2)
+                p_prom = round(p_usd * tasa_prom, 2)
+                lineas.append(f"• **{it.get('descripcion')}** ({it.get('unidad', 'UND')}): **${p_usd:,.2f} USD** (aprox. **Bs. {p_bs:,.2f}** a tasa oficial BCV de ${tasa_usd:,.2f} Bs/USD | Bs. {p_prom:,.2f} a tasa promedio)")
             return (
-                f"Consultando el catálogo oficial de costos y precios en tiempo real (Tasa BCV: ${tasa:,.2f} Bs/USD):\n\n"
+                f"Consultando el catálogo oficial de costos y precios en tiempo real (Tasa BCV: ${tasa_usd:,.2f} Bs/USD | Promedio: ${tasa_prom:,.2f} Bs):\n\n"
                 + "\n".join(lineas) +
-                f"\n\nPuedes solicitarme modificar cualquiera de estos precios o registrar nuevos ítems cuando lo desees."
+                f"\n\nPuedes solicitarme calcularlo a tasa promedio, tasa euro, o modificar cualquiera de estos precios cuando lo desees."
             )
 
-    # 4. Preguntas sobre órdenes o compras:
+    # 8. Preguntas sobre órdenes o compras:
     if any(k in p_lower for k in ["orden", "compra", "facturad", "emitid", "total", "gasto"]):
         ords = ctx.get("ordenes_recientes", [])
         lineas_ord = []
@@ -2416,12 +2726,12 @@ def _responder_con_datos_locales_astrid(prompt_usuario, ctx, accion_res, usuario
             f"Resumen financiero y de órdenes emitidas en el sistema:\n\n"
             f"• **Total de órdenes emitidas:** {ctx['total_ordenes']}\n"
             f"• **Monto total facturado:** **${ctx['total_usd']:,.2f} USD** (Bs. {ctx['total_bs']:,.2f})\n"
-            f"• **Tasa oficial BCV vigente:** ${tasa:,.2f} Bs/USD\n\n"
+            f"• **Tasa oficial BCV vigente:** ${tasa_usd:,.2f} Bs/USD\n\n"
             f"**Últimas órdenes registradas:**\n" + "\n".join(lineas_ord) +
             f"\n\nSi deseas el detalle completo, puedes [📥 Descargar el Reporte de Órdenes en Excel](/api/exportar/ordenes)."
         )
 
-    # 5. Preguntas sobre proveedores:
+    # 9. Preguntas sobre proveedores:
     if any(k in p_lower for k in ["proveedor", "proveedores", "rif", "banco", "cuenta"]):
         provs = ctx.get("proveedores_detalle", [])
         lineas_p = []
@@ -2433,7 +2743,7 @@ def _responder_con_datos_locales_astrid(prompt_usuario, ctx, accion_res, usuario
             f"\n\nPuedes ver o exportar el directorio completo con: [📥 Descargar Directorio de Proveedores (.xlsx)](/api/exportar/proveedores)."
         )
 
-    # 6. Preguntas sobre auditoría, movimientos o usuarios:
+    # 10. Preguntas sobre auditoría, movimientos o usuarios:
     if any(k in p_lower for k in ["movimiento", "auditoría", "auditoria", "loreidy", "pedro", "ramon", "quien", "quién", "hizo"]):
         movs = ctx.get("movimientos_especificos") or ctx.get("movimientos_recientes", [])
         lineas_m = []
@@ -2445,13 +2755,13 @@ def _responder_con_datos_locales_astrid(prompt_usuario, ctx, accion_res, usuario
             f"\n\nPuedes generar el historial completo con: [📥 Descargar Reporte de Auditoría (.xlsx)](/api/exportar/auditoria)."
         )
 
-    # 7. Respuesta ejecutiva general
+    # 11. Respuesta ejecutiva general
     return (
         f"Hola {usuario}. Soy Astrid, el asistente inteligente y cerebro analítico del Facturador SIST-LQ.\n\n"
         f"Actualmente contamos con:\n"
         f"• **{ctx['total_ordenes']} órdenes de compra emitidas** (Total: ${ctx['total_usd']:,.2f} USD / Bs. {ctx['total_bs']:,.2f})\n"
         f"• **{ctx['total_proveedores']} proveedores registrados** en el directorio\n"
-        f"• **Tasa oficial BCV:** ${tasa:,.2f} Bs/USD (EUR: €{ctx['tasa_eur']:,.2f} Bs)\n\n"
+        f"• **Tasa oficial BCV:** ${tasa_usd:,.2f} Bs/USD (EUR: €{tasa_eur:,.2f} Bs | Promedio: ${tasa_prom:,.2f} Bs)\n\n"
         f"Tengo acceso total para orientarte sobre precios, costos, auditoría, o generar reportes en Excel. ¿En qué puedo orientarte hoy?"
     )
 
@@ -2542,30 +2852,63 @@ def chat_astrid():
     usuario = session.get("user_nombre", "Loreidy")
     prompt_usuario = req_data["prompt"].strip()
 
-    # 1. Búsqueda en memoria histórica JSON de Astrid
-    respuesta_cached = buscar_en_memoria_astrid(prompt_usuario)
+    # Historial de conversación en la sesión
+    historial = session.get("astrid_chat_history", [])
+
+    # Verificar si es una pregunta de seguimiento conversacional dependiente del contexto
+    palabras_seguimiento = ["y ", "y a ", "también", "tambien", "como sale", "cuanto seria", "cuánto sería", "a tasa", "en promedio", "en euro", "en eur", "en bs"]
+    p_low = prompt_usuario.lower()
+    es_seguimiento = any(p_low.startswith(p) for p in palabras_seguimiento) or (len(p_low.split()) <= 4 and ("promedio" in p_low or "euro" in p_low or "bcv" in p_low or "dolar" in p_low))
+
+    # 1. Búsqueda en memoria histórica JSON de Astrid (solo si es consulta aislada y no hay historial activo)
+    respuesta_cached = None
+    if not es_seguimiento and not historial:
+        respuesta_cached = buscar_en_memoria_astrid(prompt_usuario)
+    
     if respuesta_cached:
+        historial.append({"role": "user", "content": prompt_usuario, "timestamp": datetime.datetime.now().strftime("%H:%M")})
+        historial.append({"role": "assistant", "content": respuesta_cached, "timestamp": datetime.datetime.now().strftime("%H:%M")})
+        session["astrid_chat_history"] = historial[-20:]
+        session.modified = True
         return jsonify({
             "success": True, 
             "respuesta": respuesta_cached,
-            "cached": True
+            "cached": True,
+            "historial": session["astrid_chat_history"]
         })
 
-    # 2. Consulta al motor de IA y resguardo en memoria
+    # 2. Consulta al motor cognitivo con historial
     try:
-        respuesta_texto = consultar_ia_astrid(prompt_usuario, usuario)
-        guardar_en_memoria_astrid(prompt_usuario, respuesta_texto, usuario)
+        respuesta_texto = consultar_ia_astrid(prompt_usuario, usuario, historial=historial)
+        if not es_seguimiento:
+            guardar_en_memoria_astrid(prompt_usuario, respuesta_texto, usuario)
+        
+        historial.append({"role": "user", "content": prompt_usuario, "timestamp": datetime.datetime.now().strftime("%H:%M")})
+        historial.append({"role": "assistant", "content": respuesta_texto, "timestamp": datetime.datetime.now().strftime("%H:%M")})
+        session["astrid_chat_history"] = historial[-20:]
+        session.modified = True
+
         return jsonify({
             "success": True, 
             "respuesta": respuesta_texto,
-            "cached": False
+            "cached": False,
+            "historial": session["astrid_chat_history"]
         })
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+@bp.route("/api/astrid/historial", methods=["GET"])
+def get_astrid_historial():
+    if "user_id" not in session:
+        return jsonify({"success": False, "error": "No autorizado"}), 401
+    return jsonify({"success": True, "historial": session.get("astrid_chat_history", [])})
+
+
 @bp.route("/api/astrid/limpiar", methods=["POST"])
 def limpiar_chat_astrid():
+    session["astrid_chat_history"] = []
+    session.modified = True
     return jsonify({"success": True, "mensaje": "Conversación reiniciada"})
 
 

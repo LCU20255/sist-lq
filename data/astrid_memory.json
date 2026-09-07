@@ -14,5 +14,35 @@
     "pregunta_normalizada": "cuales son los precios del catalogo",
     "respuesta": "Consultando el catálogo oficial de costos y precios en tiempo real (Tasa BCV: $804.81 Bs/USD):\n\n• **cama matrimonial** (UND): **$140.00 USD** (aprox. **Bs. 112,673.40** a tasa oficial BCV de $804.81 Bs/USD)\n• **COMPRA DE DRILL 100% ALGODON ROJO** (Metros): **$5.31 USD** (aprox. **Bs. 4,273.54** a tasa oficial BCV de $804.81 Bs/USD)\n• **TELA ALGODON EGIPTO COMERTEL** (Metros): **$4.65 USD** (aprox. **Bs. 3,742.37** a tasa oficial BCV de $804.81 Bs/USD)\n\nPuedes solicitarme modificar cualquiera de estos precios o registrar nuevos ítems cuando lo desees.",
     "veces_consultada": 1
+  },
+  {
+    "timestamp": "2026-09-07T14:36:36.819011",
+    "usuario": "Administrador Principal",
+    "pregunta": "ggg",
+    "pregunta_normalizada": "ggg",
+    "respuesta": "Hola Administrador Principal. He recibido tu mensaje (`ggg`), pero parece ser una prueba o estar incompleto.\n\n¿En qué puedo orientarte hoy? Puedes consultarme sobre:\n• **Costos y precios:** *'¿Cuánto cuesta la cama matrimonial a tasa promedio?'*\n• **Reportes con gráficas:** *'Dame un reporte con gráficas del estatus actual de mis proveedores'*\n• **Compras y órdenes:** *'¿Cuáles son las últimas órdenes emitidas?'*\n• **Directorio bancario:** *'Muéstrame los proveedores y sus cuentas bancarias'*.",
+    "veces_consultada": 2,
+    "ultimo_usuario": "Administrador Principal",
+    "updated_at": "2026-09-07T14:37:41.956403"
+  },
+  {
+    "timestamp": "2026-09-07T14:36:41.630493",
+    "usuario": "Administrador Principal",
+    "pregunta": "hola",
+    "pregunta_normalizada": "hola",
+    "respuesta": "¡Hola, Administrador Principal! Un gusto saludarte. Soy Astrid, el asistente inteligente y cerebro analítico del Facturador SIST-LQ.\n\nTengo acceso total y en tiempo real a precios de catálogo, órdenes emitidas, proveedores, trazabilidad y tasas oficiales BCV. ¿Qué deseas consultar hoy?",
+    "veces_consultada": 2,
+    "ultimo_usuario": "Administrador Principal",
+    "updated_at": "2026-09-07T14:37:43.725457"
+  },
+  {
+    "timestamp": "2026-09-07T14:36:46.723541",
+    "usuario": "Administrador Principal",
+    "pregunta": "dame un reporte con graficas del estatus actual de mis proveedores",
+    "pregunta_normalizada": "dame un reporte con graficas del estatus actual de mis proveedores",
+    "respuesta": "📊 **Reporte Ejecutivo y Estatus de Proveedores en Tiempo Real**\n\nActualmente contamos con **4 proveedores** registrados en el directorio:\n\n• **Volumen Facturado Acumulado:** **$655.40 USD** (aprox. **Bs. 536,762.57** a tasa BCV)\n• **Mayor Volumen de Compras:** **COMERTEL** con **$539.40 USD**\n• **Tasa Oficial BCV:** $813.74 Bs/USD | **Promedio:** $879.69 Bs\n\n:::chart {\"type\": \"doughnut\", \"title\": \"Distribuci\\u00f3n de Facturaci\\u00f3n por Proveedor (USD)\", \"labels\": [\"COMERTEL\", \"Soluciones Tecnol\\u00f3gicas R&M S.R.L.\", \"empresa jhoan\", \"empresa jhoan_2\"], \"data\": [539.4, 116.0, 0.0, 0.0]}:::\n\n**Estatus y Desglose por Proveedor:**\n• **COMERTEL** (Banco: Banesco): **$539.40 USD** (1 orden emitida)\n• **Soluciones Tecnológicas R&M S.R.L.** (Banco: Banesco): **$116.00 USD** (1 orden emitida)\n• **empresa jhoan** (Banco: Mercantil): **$0.00 USD** (0 órdenes emitidas)\n• **empresa jhoan_2** (Banco: Mercantil): **$0.00 USD** (0 órdenes emitidas)\n\n*(Puedes exportar el directorio oficial completo con: [📥 Descargar Directorio de Proveedores (.xlsx)](/api/exportar/proveedores))*",
+    "veces_consultada": 2,
+    "ultimo_usuario": "Administrador Principal",
+    "updated_at": "2026-09-07T14:37:45.522326"
   }
 ]

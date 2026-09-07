@@ -56,6 +56,8 @@
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
     <link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/jquery.dataTables.min.css">
     <script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
+    <!-- Chart.js CDN para Astrid IA y Reportes Visuales -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         .dataTables_wrapper .dataTables_length select {
             padding: 4px 20px 4px 8px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 11px; background: #fff;
@@ -281,18 +283,23 @@
             </div>
         </header>
 
-        <!-- FLASH NOTIFICATIONS -->
-        <div class="px-6 pt-4">
+        <!-- FLASH NOTIFICATIONS (AUTO-DISMISS) -->
+        <div class="px-6 pt-4" id="flashContainerGlobal">
             {% with messages = get_flashed_messages(with_categories=true) %}
                 {% if messages %}
                     {% for category, message in messages %}
-                        <div class="mb-4 flex items-center p-4 rounded-xl text-sm font-medium shadow-sm transition-all duration-300 
-                            {% if category == 'success' %} bg-emerald-50 text-emerald-800 border border-emerald-200
-                            {% elif category == 'danger' %} bg-rose-50 text-rose-800 border border-rose-200
-                            {% elif category == 'warning' %} bg-amber-50 text-amber-800 border border-amber-200
-                            {% else %} bg-sky-50 text-sky-800 border border-sky-200 {% endif %}">
-                            <i class="bi {% if category == 'success' %}bi-check-circle-fill text-emerald-600{% elif category == 'danger' %}bi-exclamation-octagon-fill text-rose-600{% elif category == 'warning' %}bi-exclamation-triangle-fill text-amber-600{% else %}bi-info-circle-fill text-sky-600{% endif %} mr-3 text-lg"></i>
-                            <span class="flex-1">{{ message }}</span>
+                        <div id="flash-msg-{{ loop.index }}" class="flash-alert-item mb-4 flex items-center justify-between p-4 rounded-2xl text-sm font-semibold shadow-sm transition-all duration-500 transform
+                            {% if category == 'success' %} bg-emerald-50 text-emerald-900 border border-emerald-200
+                            {% elif category == 'danger' %} bg-rose-50 text-rose-900 border border-rose-200
+                            {% elif category == 'warning' %} bg-amber-50 text-amber-900 border border-amber-200
+                            {% else %} bg-sky-50 text-sky-900 border border-sky-200 {% endif %}">
+                            <div class="flex items-center space-x-3">
+                                <i class="bi {% if category == 'success' %}bi-check-circle-fill text-emerald-600{% elif category == 'danger' %}bi-exclamation-octagon-fill text-rose-600{% elif category == 'warning' %}bi-exclamation-triangle-fill text-amber-600{% else %}bi-info-circle-fill text-sky-600{% endif %} text-lg flex-shrink-0"></i>
+                                <span>{{ message }}</span>
+                            </div>
+                            <button type="button" onclick="cerrarFlashMensaje('flash-msg-{{ loop.index }}')" class="text-slate-400 hover:text-slate-700 p-1.5 rounded-lg transition-colors" title="Cerrar aviso">
+                                <i class="bi bi-x-lg text-xs font-black"></i>
+                            </button>
                         </div>
                     {% endfor %}
                 {% endif %}
@@ -361,6 +368,16 @@
         }
 
         // =========================================================================
+        // AVISOS FLASH (AUTO-DISMISS)
+        // =========================================================================
+        function cerrarFlashMensaje(id) {
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.classList.add('opacity-0', '-translate-y-2');
+            setTimeout(() => { if (el) el.remove(); }, 400);
+        }
+
+        // =========================================================================
         // NOTIFICACIONES EN VIVO Y TIEMPO REAL
         // =========================================================================
         function toggleNotificaciones() {
@@ -369,14 +386,23 @@
         }
 
         async function limpiarNotificaciones() {
-            try {
-                await fetch('/api/notificaciones/marcar-leidas', { method: 'POST' });
-            } catch(e) {}
             const badge = document.getElementById('badgeNotificaciones');
             if (badge) {
                 badge.classList.add('hidden');
                 badge.textContent = '0';
             }
+            const visibleIds = window.ultimasNotificacionesIds || [];
+            try {
+                await fetch('/api/notificaciones/marcar-leidas', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ ids: visibleIds })
+                });
+                const stored = JSON.parse(localStorage.getItem('sistlq_leidas') || '[]');
+                const unicos = Array.from(new Set([...stored, ...visibleIds]));
+                localStorage.setItem('sistlq_leidas', JSON.stringify(unicos));
+            } catch(e) {}
+
             const lista = document.getElementById('listaNotificaciones');
             if (lista) {
                 lista.innerHTML = '<div class="py-6 text-center text-xs text-slate-400 font-medium">No hay notificaciones pendientes.</div>';
@@ -389,8 +415,8 @@
                 const f = new Date(fechaStr);
                 if (isNaN(f.getTime())) return 'Reciente';
                 const diffMs = Date.now() - f.getTime();
+                if (diffMs < 0 || diffMs < 60000) return 'Hace un momento';
                 const diffMin = Math.floor(diffMs / 60000);
-                if (diffMin < 2) return 'Hace un momento';
                 if (diffMin < 60) return `Hace ${diffMin} min`;
                 const diffHoras = Math.floor(diffMin / 60);
                 if (diffHoras < 24) return `Hace ${diffHoras} h`;
@@ -412,7 +438,14 @@
                 const lista = document.getElementById('listaNotificaciones');
                 if (!badge || !lista) return;
 
-                const count = data.total_no_leidas || 0;
+                const localLeidas = new Set(JSON.parse(localStorage.getItem('sistlq_leidas') || '[]'));
+                window.ultimasNotificacionesIds = (data.notificaciones || []).map(n => n.id);
+
+                (data.notificaciones || []).forEach(n => {
+                    if (localLeidas.has(n.id)) n.leida = true;
+                });
+
+                const count = (data.notificaciones || []).filter(n => !n.leida).length;
                 if (count > 0) {
                     badge.textContent = count > 99 ? '99+' : count;
                     badge.classList.remove('hidden');
@@ -457,41 +490,101 @@
             if (panel && !panel.contains(e.target) && !btn && !panel.classList.contains('hidden')) {
                 panel.classList.add('hidden');
             }
-            // Cerrar Astrid flotante al hacer click fuera si se desea
-            const astridWin = document.getElementById('astrid-floating-window');
-            const astridBtn = e.target.closest('#btn-astrid-floating');
-            if (astridWin && !astridWin.contains(e.target) && !astridBtn && !astridWin.classList.contains('hidden')) {
-                // Dejar abierto salvo que el usuario lo cierre manualmente
-            }
         });
 
-        // Cargar notificaciones al iniciar y cada 45 segundos
+        // Inicializar avisos y notificaciones al cargar la página
         document.addEventListener('DOMContentLoaded', function() {
+            // Auto-cerrar avisos flash a los 4 segundos
+            setTimeout(function() {
+                document.querySelectorAll('.flash-alert-item').forEach(el => {
+                    el.classList.add('opacity-0', '-translate-y-2');
+                    setTimeout(() => { if (el) el.remove(); }, 500);
+                });
+            }, 4000);
+
             cargarNotificacionesEnVivo();
             setInterval(cargarNotificacionesEnVivo, 45000);
         });
 
         // =========================================================================
-        // ASTRID IA - ASISTENTE FLOTANTE Y REINICIO DE CHAT ("NUEVO CHAT")
+        // ASTRID IA - FORMATEADOR, CHART.JS WIDGET Y ASISTENTE FLOTANTE
         // =========================================================================
-        if (typeof window.formatearMensajeAstrid !== 'function') {
-            window.formatearMensajeAstrid = function(texto) {
-                if (!texto) return '';
-                let html = texto;
-                html = html.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-                html = html.replace(/\*\*([^*]+)\*\*/g, '<strong class="font-bold text-slate-900">$1</strong>');
-                html = html.replace(/\*([^*]+)\*/g, '<em class="italic">$1</em>');
-                html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, function(match, txt, url) {
-                    let icon = 'bi-download';
-                    if (url.includes('ordenes')) icon = 'bi-file-earmark-excel-fill';
-                    else if (url.includes('proveedores')) icon = 'bi-buildings-fill';
-                    else if (url.includes('auditoria')) icon = 'bi-shield-check';
-                    return `<a href="${url}" target="_blank" class="inline-flex items-center gap-1.5 px-3 py-1.5 my-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs shadow transition-all hover:scale-105"><i class="bi ${icon}"></i> ${txt}</a>`;
-                });
-                html = html.replace(/\n/g, '<br>');
-                return html;
-            };
-        }
+        window.renderAstridChartWidget = function(canvasId, cfg) {
+            const canvas = document.getElementById(canvasId);
+            if (!canvas || typeof Chart === 'undefined') return;
+            const ctx = canvas.getContext('2d');
+            const colors = [
+                '#4f46e5', '#06b6d4', '#10b981', '#f59e0b', 
+                '#ec4899', '#8b5cf6', '#14b8a6', '#f97316', '#3b82f6'
+            ];
+            new Chart(ctx, {
+                type: cfg.type || 'doughnut',
+                data: {
+                    labels: cfg.labels || [],
+                    datasets: [{
+                        data: cfg.data || [],
+                        backgroundColor: colors.slice(0, (cfg.labels || []).length),
+                        borderWidth: 2,
+                        borderColor: '#ffffff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: { boxWidth: 10, font: { size: 10, family: 'Inter', weight: 'bold' } }
+                        }
+                    }
+                }
+            });
+        };
+
+        window.formatearMensajeAstrid = function(texto) {
+            if (!texto) return '';
+            let html = texto;
+
+            // 1. Extraer y procesar bloques de gráficas :::chart { ... }:::
+            html = html.replace(/:::chart\s*(\{.*?\})\s*:::/gs, function(match, jsonStr) {
+                try {
+                    const cfg = JSON.parse(jsonStr);
+                    const chartId = 'astrid-chart-' + Math.random().toString(36).substr(2, 9);
+                    setTimeout(() => {
+                        window.renderAstridChartWidget(chartId, cfg);
+                    }, 120);
+                    return `
+                        <div class="my-3 p-3.5 bg-slate-50 border border-slate-200 rounded-2xl shadow-sm">
+                            <div class="flex items-center justify-between mb-2.5 border-b border-slate-200 pb-2">
+                                <h5 class="text-xs font-black uppercase tracking-wider text-slate-800 flex items-center">
+                                    <i class="bi bi-pie-chart-fill text-indigo-600 mr-1.5 text-sm"></i>${cfg.title || 'Análisis Gráfico'}
+                                </h5>
+                                <span class="text-[10px] font-bold px-2 py-0.5 bg-indigo-100 text-indigo-800 rounded-full">Interactiva</span>
+                            </div>
+                            <div class="relative w-full h-52 flex items-center justify-center">
+                                <canvas id="${chartId}"></canvas>
+                            </div>
+                        </div>
+                    `;
+                } catch(e) {
+                    return '';
+                }
+            });
+
+            // 2. Formato Markdown
+            html = html.replace(/\*\*([^*]+)\*\*/g, '<strong class="font-bold text-slate-900">$1</strong>');
+            html = html.replace(/\*([^*]+)\*/g, '<em class="italic">$1</em>');
+            html = html.replace(/`([^`]+)`/g, '<code class="px-1.5 py-0.5 bg-slate-100 font-mono text-xs rounded text-indigo-700 font-bold">$1</code>');
+            html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, function(match, txt, url) {
+                let icon = 'bi-download';
+                if (url.includes('ordenes')) icon = 'bi-file-earmark-excel-fill';
+                else if (url.includes('proveedores')) icon = 'bi-buildings-fill';
+                else if (url.includes('auditoria')) icon = 'bi-shield-check';
+                return `<a href="${url}" target="_blank" class="inline-flex items-center gap-1.5 px-3 py-1.5 my-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs shadow transition-all hover:scale-105"><i class="bi ${icon}"></i> ${txt}</a>`;
+            });
+            html = html.replace(/\n/g, '<br>');
+            return html;
+        };
 
         function toggleAstridFloating() {
             const win = document.getElementById('astrid-floating-window');
@@ -505,44 +598,224 @@
             }
         }
 
-        async function enviarMensajeAstridFloating() {
-            const input = document.getElementById('astrid-floating-input');
-            if (!input) return;
-            const msg = input.value.trim();
+        // =========================================================================
+        // ASTRID IA - SISTEMA UNIFICADO DE CHAT SINCRONIZADO (MODAL Y FLOTANTE)
+        // =========================================================================
+        window.astridChatState = [];
+
+        function renderMensajesEnAmbosChats(mensajes) {
+            window.astridChatState = mensajes || [];
+            const cMain = document.getElementById('astrid-chat-container');
+            const cFloat = document.getElementById('astrid-floating-chat-container');
+
+            if (!mensajes || mensajes.length === 0) {
+                const initMain = `
+                    <div class="flex items-start gap-3">
+                        <div class="w-8 h-8 rounded-full bg-indigo-500 flex-shrink-0 flex items-center justify-center text-white text-xs shadow-sm"><i class="bi bi-robot"></i></div>
+                        <div class="bg-white border border-slate-200 rounded-2xl rounded-tl-none px-4 py-3 text-sm text-slate-700 shadow-sm max-w-[80%] leading-relaxed">
+                            ¡Hola! Soy Astrid, el cerebro de datos del Facturador SIST-LQ. Consulto en tiempo real proveedores, órdenes emitidas, totales en USD/Bs y la tasa BCV. ¿En qué puedo orientarte hoy?
+                        </div>
+                    </div>
+                `;
+                const initFloat = `
+                    <div class="flex items-start gap-2.5">
+                        <div class="w-7 h-7 rounded-full bg-indigo-600 flex-shrink-0 flex items-center justify-center text-white text-xs shadow-sm"><i class="bi bi-robot"></i></div>
+                        <div class="bg-white border border-slate-200 rounded-2xl rounded-tl-none px-3.5 py-2.5 text-slate-700 shadow-sm max-w-[85%] leading-relaxed">
+                            ¡Hola! Soy Astrid. Puedo ayudarte a consultar precios, costos de catálogo, emitir reportes en Excel, o ver los movimientos de usuarios en el sistema. ¿En qué te colaboro?
+                        </div>
+                    </div>
+                `;
+                if (cMain) cMain.innerHTML = initMain;
+                if (cFloat) cFloat.innerHTML = initFloat;
+                return;
+            }
+
+            let htmlMain = '';
+            let htmlFloat = '';
+
+            mensajes.forEach(m => {
+                if (m.role === 'user') {
+                    const txtSeguro = (m.content || '').replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+                    htmlMain += `
+                        <div class="flex items-start gap-3 justify-end">
+                            <div class="bg-indigo-50 border border-indigo-100 rounded-2xl rounded-tr-none px-4 py-3 text-sm text-slate-700 shadow-sm max-w-[80%] leading-relaxed">
+                                ${txtSeguro}
+                            </div>
+                            <div class="w-8 h-8 rounded-full bg-slate-200 flex-shrink-0 flex items-center justify-center text-slate-600 text-xs">
+                                <i class="bi bi-person-fill"></i>
+                            </div>
+                        </div>
+                    `;
+                    htmlFloat += `
+                        <div class="flex items-start gap-2.5 justify-end">
+                            <div class="bg-indigo-600 text-white rounded-2xl rounded-tr-none px-3.5 py-2.5 shadow-sm max-w-[85%] leading-relaxed">
+                                ${txtSeguro}
+                            </div>
+                            <div class="w-7 h-7 rounded-full bg-slate-200 flex-shrink-0 flex items-center justify-center text-slate-600 text-xs font-bold">
+                                <i class="bi bi-person-fill"></i>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    const txtFormateado = formatearMensajeAstrid(m.content || '');
+                    htmlMain += `
+                        <div class="flex items-start gap-3">
+                            <div class="w-8 h-8 rounded-full bg-indigo-500 flex-shrink-0 flex items-center justify-center text-white text-xs shadow-sm">
+                                <i class="bi bi-robot"></i>
+                            </div>
+                            <div class="bg-white border border-slate-200 rounded-2xl rounded-tl-none px-4 py-3 text-sm text-slate-700 shadow-sm max-w-[85%] leading-relaxed">
+                                ${txtFormateado}
+                            </div>
+                        </div>
+                    `;
+                    htmlFloat += `
+                        <div class="flex items-start gap-2.5">
+                            <div class="w-7 h-7 rounded-full bg-indigo-600 flex-shrink-0 flex items-center justify-center text-white text-xs shadow-sm">
+                                <i class="bi bi-robot"></i>
+                            </div>
+                            <div class="bg-white border border-slate-200 rounded-2xl rounded-tl-none px-3.5 py-2.5 text-slate-700 shadow-sm max-w-[85%] leading-relaxed">
+                                ${txtFormateado}
+                            </div>
+                        </div>
+                    `;
+                }
+            });
+
+            if (cMain) {
+                cMain.innerHTML = htmlMain;
+                cMain.scrollTop = cMain.scrollHeight;
+            }
+            if (cFloat) {
+                cFloat.innerHTML = htmlFloat;
+                cFloat.scrollTop = cFloat.scrollHeight;
+            }
+        }
+
+        function agregarMensajeEnAmbosChats(role, content) {
+            const cMain = document.getElementById('astrid-chat-container');
+            const cFloat = document.getElementById('astrid-floating-chat-container');
+
+            if (role === 'user') {
+                const txtSeguro = (content || '').replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+                if (cMain) {
+                    cMain.innerHTML += `
+                        <div class="flex items-start gap-3 justify-end">
+                            <div class="bg-indigo-50 border border-indigo-100 rounded-2xl rounded-tr-none px-4 py-3 text-sm text-slate-700 shadow-sm max-w-[80%] leading-relaxed">
+                                ${txtSeguro}
+                            </div>
+                            <div class="w-8 h-8 rounded-full bg-slate-200 flex-shrink-0 flex items-center justify-center text-slate-600 text-xs">
+                                <i class="bi bi-person-fill"></i>
+                            </div>
+                        </div>
+                    `;
+                    cMain.scrollTop = cMain.scrollHeight;
+                }
+                if (cFloat) {
+                    cFloat.innerHTML += `
+                        <div class="flex items-start gap-2.5 justify-end">
+                            <div class="bg-indigo-600 text-white rounded-2xl rounded-tr-none px-3.5 py-2.5 shadow-sm max-w-[85%] leading-relaxed">
+                                ${txtSeguro}
+                            </div>
+                            <div class="w-7 h-7 rounded-full bg-slate-200 flex-shrink-0 flex items-center justify-center text-slate-600 text-xs font-bold">
+                                <i class="bi bi-person-fill"></i>
+                            </div>
+                        </div>
+                    `;
+                    cFloat.scrollTop = cFloat.scrollHeight;
+                }
+            } else {
+                const txtFormateado = formatearMensajeAstrid(content || '');
+                if (cMain) {
+                    cMain.innerHTML += `
+                        <div class="flex items-start gap-3">
+                            <div class="w-8 h-8 rounded-full bg-indigo-500 flex-shrink-0 flex items-center justify-center text-white text-xs shadow-sm">
+                                <i class="bi bi-robot"></i>
+                            </div>
+                            <div class="bg-white border border-slate-200 rounded-2xl rounded-tl-none px-4 py-3 text-sm text-slate-700 shadow-sm max-w-[85%] leading-relaxed">
+                                ${txtFormateado}
+                            </div>
+                        </div>
+                    `;
+                    cMain.scrollTop = cMain.scrollHeight;
+                }
+                if (cFloat) {
+                    cFloat.innerHTML += `
+                        <div class="flex items-start gap-2.5">
+                            <div class="w-7 h-7 rounded-full bg-indigo-600 flex-shrink-0 flex items-center justify-center text-white text-xs shadow-sm">
+                                <i class="bi bi-robot"></i>
+                            </div>
+                            <div class="bg-white border border-slate-200 rounded-2xl rounded-tl-none px-3.5 py-2.5 text-slate-700 shadow-sm max-w-[85%] leading-relaxed">
+                                ${txtFormateado}
+                            </div>
+                        </div>
+                    `;
+                    cFloat.scrollTop = cFloat.scrollHeight;
+                }
+            }
+        }
+
+        function mostrarLoaderEnAmbosChats(loaderId) {
+            const cMain = document.getElementById('astrid-chat-container');
+            const cFloat = document.getElementById('astrid-floating-chat-container');
+            if (cMain) {
+                cMain.innerHTML += `
+                    <div id="${loaderId}" class="flex items-start gap-3">
+                        <div class="w-8 h-8 rounded-full bg-indigo-500 flex-shrink-0 flex items-center justify-center text-white text-xs shadow-sm">
+                            <i class="bi bi-robot"></i>
+                        </div>
+                        <div class="bg-white border border-slate-200 rounded-2xl rounded-tl-none px-4 py-3 text-sm text-slate-400 shadow-sm max-w-[80%] flex gap-1 items-center">
+                            <span class="animate-bounce">.</span>
+                            <span class="animate-bounce delay-75">.</span>
+                            <span class="animate-bounce delay-150">.</span>
+                        </div>
+                    </div>
+                `;
+                cMain.scrollTop = cMain.scrollHeight;
+            }
+            if (cFloat) {
+                cFloat.innerHTML += `
+                    <div id="${loaderId}-float" class="flex items-start gap-2.5">
+                        <div class="w-7 h-7 rounded-full bg-indigo-600 flex-shrink-0 flex items-center justify-center text-white text-xs shadow-sm">
+                            <i class="bi bi-robot"></i>
+                        </div>
+                        <div class="bg-white border border-slate-200 rounded-2xl rounded-tl-none px-3 py-2 text-slate-400 shadow-sm max-w-[80%] flex gap-1 items-center">
+                            <span class="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-bounce"></span>
+                            <span class="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-bounce delay-75"></span>
+                            <span class="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-bounce delay-150"></span>
+                        </div>
+                    </div>
+                `;
+                cFloat.scrollTop = cFloat.scrollHeight;
+            }
+        }
+
+        function ocultarLoaderEnAmbosChats(loaderId) {
+            const lMain = document.getElementById(loaderId);
+            if (lMain) lMain.remove();
+            const lFloat = document.getElementById(loaderId + '-float');
+            if (lFloat) lFloat.remove();
+        }
+
+        window.enviarMensajeAstridGlobal = async function(msgParam=null) {
+            const inMain = document.getElementById('astrid-input');
+            const inFloat = document.getElementById('astrid-floating-input');
+
+            let msg = msgParam;
+            if (!msg) {
+                if (inMain && inMain.value.trim()) msg = inMain.value.trim();
+                else if (inFloat && inFloat.value.trim()) msg = inFloat.value.trim();
+            }
             if (!msg) return;
-            input.value = '';
 
-            const chatContainer = document.getElementById('astrid-floating-chat-container');
-            if (!chatContainer) return;
+            // Limpiar ambos inputs
+            if (inMain) inMain.value = '';
+            if (inFloat) inFloat.value = '';
 
-            // Burbuja del usuario
-            chatContainer.innerHTML += `
-                <div class="flex items-start gap-2.5 justify-end">
-                    <div class="bg-indigo-600 text-white rounded-2xl rounded-tr-none px-3.5 py-2.5 shadow-sm max-w-[85%] leading-relaxed">
-                        ${msg.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}
-                    </div>
-                    <div class="w-7 h-7 rounded-full bg-slate-200 flex-shrink-0 flex items-center justify-center text-slate-600 text-xs font-bold">
-                        <i class="bi bi-person-fill"></i>
-                    </div>
-                </div>
-            `;
-            chatContainer.scrollTop = chatContainer.scrollHeight;
+            // Renderizar mensaje de usuario en ambos chats
+            agregarMensajeEnAmbosChats('user', msg);
 
-            // Indicador de escritura
-            const loaderId = 'loader-float-' + Date.now();
-            chatContainer.innerHTML += `
-                <div id="${loaderId}" class="flex items-start gap-2.5">
-                    <div class="w-7 h-7 rounded-full bg-indigo-600 flex-shrink-0 flex items-center justify-center text-white text-xs shadow-sm">
-                        <i class="bi bi-robot"></i>
-                    </div>
-                    <div class="bg-white border border-slate-200 rounded-2xl rounded-tl-none px-3 py-2 text-slate-400 shadow-sm max-w-[80%] flex gap-1 items-center">
-                        <span class="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-bounce"></span>
-                        <span class="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-bounce delay-75"></span>
-                        <span class="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-bounce delay-150"></span>
-                    </div>
-                </div>
-            `;
-            chatContainer.scrollTop = chatContainer.scrollHeight;
+            const loaderId = 'loader-sync-' + Date.now();
+            mostrarLoaderEnAmbosChats(loaderId);
 
             try {
                 const res = await fetch('/api/astrid', {
@@ -556,74 +829,34 @@
                     throw new Error(`Servidor respondió con código ${res.status}`);
                 }
                 const data = await res.json();
-                const loaderEl = document.getElementById(loaderId);
-                if (loaderEl) loaderEl.remove();
+                ocultarLoaderEnAmbosChats(loaderId);
 
                 if (data.success) {
-                    chatContainer.innerHTML += `
-                        <div class="flex items-start gap-2.5">
-                            <div class="w-7 h-7 rounded-full bg-indigo-600 flex-shrink-0 flex items-center justify-center text-white text-xs shadow-sm">
-                                <i class="bi bi-robot"></i>
-                            </div>
-                            <div class="bg-white border border-slate-200 rounded-2xl rounded-tl-none px-3.5 py-2.5 text-slate-700 shadow-sm max-w-[85%] leading-relaxed">
-                                ${formatearMensajeAstrid(data.respuesta)}
-                            </div>
-                        </div>
-                    `;
+                    agregarMensajeEnAmbosChats('assistant', data.respuesta);
+                    if (data.historial) window.astridChatState = data.historial;
                 } else {
-                    chatContainer.innerHTML += `
-                        <div class="flex items-start gap-2.5">
-                            <div class="w-7 h-7 rounded-full bg-rose-500 flex-shrink-0 flex items-center justify-center text-white text-xs shadow-sm">
-                                <i class="bi bi-exclamation-triangle"></i>
-                            </div>
-                            <div class="bg-rose-50 border border-rose-200 rounded-2xl rounded-tl-none px-3.5 py-2.5 text-rose-700 shadow-sm max-w-[85%]">
-                                Error: ${data.error || 'No se pudo procesar la solicitud.'}
-                            </div>
-                        </div>
-                    `;
+                    agregarMensajeEnAmbosChats('assistant', `⚠️ Error: ${data.error || 'No se pudo procesar la solicitud.'}`);
                 }
             } catch(e) {
-                const loaderEl = document.getElementById(loaderId);
-                if (loaderEl) loaderEl.remove();
-                chatContainer.innerHTML += `
-                    <div class="flex items-start gap-2.5">
-                        <div class="w-7 h-7 rounded-full bg-rose-500 flex-shrink-0 flex items-center justify-center text-white text-xs shadow-sm">
-                            <i class="bi bi-exclamation-triangle"></i>
-                        </div>
-                        <div class="bg-rose-50 border border-rose-200 rounded-2xl rounded-tl-none px-3.5 py-2.5 text-rose-700 shadow-sm max-w-[85%]">
-                            Error de conexión con el cerebro de datos de Astrid.
-                        </div>
-                    </div>
-                `;
+                ocultarLoaderEnAmbosChats(loaderId);
+                agregarMensajeEnAmbosChats('assistant', `⚠️ Error de conexión con el cerebro de datos de Astrid.`);
             }
-            chatContainer.scrollTop = chatContainer.scrollHeight;
-        }
+        };
+
+        window.enviarMensajeAstrid = function(msgParam) {
+            return window.enviarMensajeAstridGlobal(msgParam);
+        };
+
+        window.enviarMensajeAstridFloating = function() {
+            return window.enviarMensajeAstridGlobal();
+        };
 
         async function nuevoChatAstrid() {
             try {
                 await fetch('/api/astrid/limpiar', { method: 'POST' });
             } catch(e) {}
 
-            const initialModal = `
-                <div class="flex items-start gap-3">
-                    <div class="w-8 h-8 rounded-full bg-indigo-500 flex-shrink-0 flex items-center justify-center text-white text-xs shadow-sm"><i class="bi bi-robot"></i></div>
-                    <div class="bg-white border border-slate-200 rounded-2xl rounded-tl-none px-4 py-3 text-sm text-slate-700 shadow-sm max-w-[80%] leading-relaxed">
-                        ¡Conversación reiniciada! Soy Astrid, el cerebro analítico del Facturador SIST-LQ. Consulto en tiempo real proveedores, órdenes emitidas, costos y tasas oficiales BCV. ¿En qué puedo orientarte ahora?
-                    </div>
-                </div>
-            `;
-            const initialFloat = `
-                <div class="flex items-start gap-2.5">
-                    <div class="w-7 h-7 rounded-full bg-indigo-600 flex-shrink-0 flex items-center justify-center text-white text-xs shadow-sm"><i class="bi bi-robot"></i></div>
-                    <div class="bg-white border border-slate-200 rounded-2xl rounded-tl-none px-3.5 py-2.5 text-slate-700 shadow-sm max-w-[85%] leading-relaxed">
-                        ¡Conversación reiniciada! ¿En qué te colaboro hoy? Puedes consultar precios, costos de catálogo o pedir reportes en Excel.
-                    </div>
-                </div>
-            `;
-            const c1 = document.getElementById('astrid-chat-container');
-            if (c1) c1.innerHTML = initialModal;
-            const c2 = document.getElementById('astrid-floating-chat-container');
-            if (c2) c2.innerHTML = initialFloat;
+            renderMensajesEnAmbosChats([]);
 
             if (typeof Swal !== 'undefined') {
                 const Toast = Swal.mixin({
@@ -638,6 +871,17 @@
                     title: 'Conversación reiniciada con Astrid'
                 });
             }
+        }
+
+        async function cargarHistorialAstrid() {
+            try {
+                const res = await fetch('/api/astrid/historial');
+                if (!res.ok) return;
+                const data = await res.json();
+                if (data.success && data.historial && data.historial.length > 0) {
+                    renderMensajesEnAmbosChats(data.historial);
+                }
+            } catch(e) {}
         }
 
         function iniciarDictadoAstridFloating() {
