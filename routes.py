@@ -1242,44 +1242,42 @@ def chat_astrid():
         )
         respuesta_texto = transcript_interaction.output_text
         
-        # 2. Generar audio (TTS)
-        tts_interaction = client.interactions.create(
-            model="gemini-3.1-flash-tts-preview",
-            input=respuesta_texto,
-            response_format={"type": "audio"},
-            generation_config={
-                "speech_config": [
-                    {"voice": "Kore"}
-                ]
-            }
-        )
-        
-        # Extraer PCM usando posibles nombres de atributos
-        pcm = getattr(tts_interaction, 'output_audio', None)
-        if not pcm: pcm = getattr(tts_interaction, 'audio', None)
-        if not pcm: pcm = getattr(tts_interaction, 'output_bytes', None)
-        if not pcm:
-            try:
-                # Si el SDK lo encapsula en parts
-                pcm = tts_interaction.candidates[0].content.parts[0].inline_data.data
-            except:
-                pass
-                
+        # 2. Generar audio (TTS con gemini-3.1-flash-tts-preview y voz femenina Kore)
         audio_b64 = ""
-        if pcm:
+        try:
             import base64
             import wave
             import io
             
-            wav_io = io.BytesIO()
-            with wave.open(wav_io, "wb") as wf:
-                wf.setnchannels(1)
-                wf.setsampwidth(2)
-                wf.setframerate(24000)
-                wf.writeframes(pcm)
+            stream = client.interactions.create(
+                model="gemini-3.1-flash-tts-preview",
+                input=respuesta_texto,
+                response_format={"type": "audio"},
+                generation_config={
+                    "speech_config": [
+                        {"voice": "Kore"}
+                    ]
+                },
+                stream=True
+            )
             
-            wav_bytes = wav_io.getvalue()
-            audio_b64 = base64.b64encode(wav_bytes).decode('utf-8')
+            pcm_chunks = []
+            for event in stream:
+                if getattr(event, 'event_type', None) == 'step.delta':
+                    if getattr(event.delta, 'type', None) == 'audio':
+                        pcm_chunks.append(base64.b64decode(event.delta.data))
+            
+            pcm = b"".join(pcm_chunks)
+            if pcm:
+                wav_io = io.BytesIO()
+                with wave.open(wav_io, "wb") as wf:
+                    wf.setnchannels(1)
+                    wf.setsampwidth(2)
+                    wf.setframerate(24000)
+                    wf.writeframes(pcm)
+                audio_b64 = base64.b64encode(wav_io.getvalue()).decode('utf-8')
+        except Exception as tts_err:
+            current_app.logger.error(f"Error generando TTS de Astrid: {tts_err}")
 
         return jsonify({
             "success": True, 

@@ -1643,11 +1643,17 @@ async function enviarMensajeAstrid() {
     chatContainer.scrollTop = chatContainer.scrollHeight;
 }
 
+let currentAstridAudio = null;
 function hablarAstrid(texto, audio_b64) {
+    if (currentAstridAudio) {
+        try { currentAstridAudio.pause(); currentAstridAudio.currentTime = 0; } catch(e){}
+    }
     if (audio_b64) {
         try {
-            const audio = new Audio('data:audio/wav;base64,' + audio_b64);
-            audio.play();
+            currentAstridAudio = new Audio('data:audio/wav;base64,' + audio_b64);
+            currentAstridAudio.play().catch(e => {
+                console.warn("Reproducción automática:", e);
+            });
             return;
         } catch(e) { console.error("Error al reproducir audio:", e); }
     }

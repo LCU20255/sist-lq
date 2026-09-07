@@ -874,10 +874,11 @@
             title: 'Enviar Clave vía Telegram',
             width: 600,
             html: `
-                <div class="text-sm text-slate-500 mb-4 bg-blue-50 p-3 rounded-lg text-left">
-                    <p class="font-bold text-blue-700 mb-1"><i class="bi bi-info-circle-fill mr-1"></i>Sobre el Chat ID</p>
-                    <p>Por políticas de privacidad, los bots de Telegram <b>no pueden enviar mensajes a números telefónicos</b> ni iniciar chats con desconocidos.</p>
-                    <p class="mt-2">El usuario debe iniciar el chat primero. Para obtener su <b>Chat ID</b> numérico, el usuario puede escribirle al bot <b>@userinfobot</b> en Telegram y copiar el ID que devuelve.</p>
+                <div class="text-sm text-slate-500 mb-4 bg-indigo-50 border border-indigo-100 p-3.5 rounded-xl text-left">
+                    <p class="font-bold text-indigo-800 mb-1 flex items-center"><i class="bi bi-telegram text-lg mr-1.5 text-indigo-600"></i>¿Cómo enviar mensaje vía Telegram?</p>
+                    <p class="text-xs text-slate-600">Por seguridad de Telegram, los bots <b>no pueden buscar por número de teléfono</b>.</p>
+                    <p class="mt-2 text-xs text-slate-700"><b>Paso 1:</b> El usuario debe abrir <a href="https://t.me/AstridLQ_bot" target="_blank" class="text-indigo-600 font-black underline">@AstridLQ_bot</a> y presionar <b>Iniciar (/start)</b>.</p>
+                    <p class="mt-1 text-xs text-slate-700"><b>Paso 2:</b> Para saber su <b>Chat ID</b>, el usuario puede abrir <b>@userinfobot</b> en Telegram y copiar el ID numérico.</p>
                 </div>
                 <input id="swal-chatid" class="swal2-input" placeholder="Ingresa el Chat ID (ej. 123456789)">
                 <input id="swal-mensaje" class="swal2-input" placeholder="Mensaje / Clave temporal">
