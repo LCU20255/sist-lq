@@ -1234,100 +1234,27 @@ def _generar_edge_tts(texto, voice="es-VE-PaolaNeural"):
             current_app.logger.warning(f"Error generando Edge TTS: {e}")
         return b""
 
-def generar_audio_astrid(texto, genai_client=None):
+def generar_audio_astrid(texto):
     """
-    Genera voz para Astrid con arquitectura de alta fidelidad:
-    1. Si TTS_ENGINE == "elevenlabs" y ELEVENLABS_API_KEY está configurado: usa ElevenLabs.
-    2. Por defecto: usa Microsoft Edge Neural TTS (100% GRATIS, ILIMITADO, sin API keys, voz venezolana es-VE-PaolaNeural).
-    3. Si falla ElevenLabs, conmuta automáticamente a Edge TTS.
-    4. Respaldo terciario: Gemini 3.1 Flash TTS.
+    Genera voz para Astrid utilizando exclusivamente Microsoft Edge Neural TTS.
+    100% GRATIS, ILIMITADO, SIN API KEYS, VOZ VENEZOLANA DE ALTA CALIDAD: es-VE-PaolaNeural.
     Retorna: (audio_b64, audio_mime)
     """
     import base64
-    import requests
     
     texto_limpio = re.sub(r'[*#_`]', '', texto)
     texto_limpio = re.sub(r'[\U00010000-\U0010ffff]', '', texto_limpio).strip()
     if not texto_limpio:
         return "", ""
 
-    tts_engine = os.getenv("TTS_ENGINE", "edge").lower()
-
-    # Si se especificó ElevenLabs
-    if tts_engine == "elevenlabs":
-        el_key = os.getenv("ELEVENLABS_API_KEY")
-        voice_id = os.getenv("ELEVENLABS_VOICE_ID", "EXAVITQu4vr4xnSDxMaL")
-        if el_key:
-            try:
-                url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
-                headers = {
-                    "xi-api-key": el_key,
-                    "Content-Type": "application/json"
-                }
-                payload = {
-                    "text": texto_limpio[:1000],
-                    "model_id": "eleven_multilingual_v2",
-                    "voice_settings": {
-                        "stability": 0.5,
-                        "similarity_boost": 0.8
-                    }
-                }
-                r = requests.post(url, json=payload, headers=headers, timeout=12)
-                if r.status_code == 200 and r.content:
-                    return base64.b64encode(r.content).decode("utf-8"), "audio/mp3"
-                else:
-                    if current_app:
-                        current_app.logger.warning(f"ElevenLabs retorno {r.status_code}. Aplicando fallback a Edge TTS.")
-            except Exception as e:
-                if current_app:
-                    current_app.logger.warning(f"Error ElevenLabs: {e}. Aplicando fallback a Edge TTS.")
-
-    # 1. Motor Gratis e Ilimitado: Edge TTS (Voz femenina Paola de Venezuela)
     try:
         voz_edge = os.getenv("EDGE_TTS_VOICE", "es-VE-PaolaNeural")
-        audio_mp3 = _generar_edge_tts(texto_limpio[:2000], voice=voz_edge)
+        audio_mp3 = _generar_edge_tts(texto_limpio[:2500], voice=voz_edge)
         if audio_mp3:
             return base64.b64encode(audio_mp3).decode("utf-8"), "audio/mp3"
     except Exception as edge_err:
         if current_app:
             current_app.logger.warning(f"Error en Edge TTS: {edge_err}")
-
-    # 2. Fallback a Google Gemini 3.1 Flash TTS
-    try:
-        if genai_client is None:
-            gemini_key = os.getenv("GEMINI_API_KEY")
-            if gemini_key:
-                from google import genai
-                genai_client = genai.Client(api_key=gemini_key)
-                
-        if genai_client:
-            import wave
-            import io
-            stream = genai_client.interactions.create(
-                model="gemini-3.1-flash-tts-preview",
-                input=texto_limpio[:1500],
-                response_format={"type": "audio"},
-                generation_config={"speech_config": [{"voice": "Kore"}]},
-                stream=True
-            )
-            pcm_chunks = []
-            for event in stream:
-                if getattr(event, 'event_type', None) == 'step.delta':
-                    if getattr(event.delta, 'type', None) == 'audio':
-                        pcm_chunks.append(base64.b64decode(event.delta.data))
-            
-            pcm = b"".join(pcm_chunks)
-            if pcm:
-                wav_io = io.BytesIO()
-                with wave.open(wav_io, "wb") as wf:
-                    wf.setnchannels(1)
-                    wf.setsampwidth(2)
-                    wf.setframerate(24000)
-                    wf.writeframes(pcm)
-                return base64.b64encode(wav_io.getvalue()).decode('utf-8'), "audio/wav"
-    except Exception as gem_err:
-        if current_app:
-            current_app.logger.error(f"Error en Gemini TTS fallback: {gem_err}")
 
     return "", ""
 
@@ -1363,8 +1290,7 @@ def astrid_bienvenida():
 def consultar_ia_astrid(prompt_usuario, usuario="Loreidy"):
     """
     Motor cognitivo de Astrid:
-    1. Utiliza OpenRouter API (modelos gratuitos de alto rendimiento como Nemotron y MiniMax).
-    2. Si OpenRouter no responde, usa Google Gemini como respaldo.
+    Utiliza OpenRouter API con modelos gratuitos de última generación (Nemotron, MiniMax, Gemma).
     """
     sys_prompt = (
         f"Eres Astrid, la asistente virtual super inteligente del sistema Facturador SIST-LQ. "
@@ -1373,59 +1299,45 @@ def consultar_ia_astrid(prompt_usuario, usuario="Loreidy"):
         f"Ayúdalo en lo que necesite referente a facturación, sistema, o cualquier otra duda de negocios."
     )
     
-    # 1. Intentar OpenRouter
     openrouter_key = os.getenv("OPENROUTER_API_KEY")
-    if openrouter_key:
-        models = [
-            os.getenv("OPENROUTER_MODEL", "nvidia/nemotron-3.5-lightning:free"),
-            "minimax/minimax-m3:free",
-            "google/gemma-4-26b-a4b-it:free"
-        ]
-        headers = {
-            "Authorization": f"Bearer {openrouter_key}",
-            "HTTP-Referer": "https://sis-fact-lq.onrender.com",
-            "X-Title": "SIST-LQ Astrid Assistant"
-        }
-        for model in models:
-            try:
-                payload = {
-                    "model": model,
-                    "messages": [
-                        {"role": "system", "content": sys_prompt},
-                        {"role": "user", "content": prompt_usuario}
-                    ],
-                    "temperature": 0.7,
-                    "max_tokens": 800
-                }
-                r = requests.post("https://openrouter.ai/api/v1/chat/completions", json=payload, headers=headers, timeout=20)
-                if r.status_code == 200:
-                    data = r.json()
-                    choices = data.get("choices", [])
-                    if choices and "message" in choices[0]:
-                        return choices[0]["message"]["content"]
-                else:
-                    if current_app:
-                        current_app.logger.warning(f"OpenRouter modelo {model} retorno {r.status_code}: {r.text[:100]}")
-            except Exception as e:
-                if current_app:
-                    current_app.logger.warning(f"Excepcion en OpenRouter ({model}): {e}")
+    if not openrouter_key:
+        raise RuntimeError("OPENROUTER_API_KEY no configurada en las variables de entorno.")
 
-    # 2. Respaldo Gemini si está disponible
-    gemini_key = os.getenv("GEMINI_API_KEY")
-    if gemini_key:
+    models = [
+        os.getenv("OPENROUTER_MODEL", "nvidia/nemotron-3.5-lightning:free"),
+        "minimax/minimax-m3:free",
+        "google/gemma-4-26b-a4b-it:free"
+    ]
+    headers = {
+        "Authorization": f"Bearer {openrouter_key}",
+        "HTTP-Referer": "https://sis-fact-lq.onrender.com",
+        "X-Title": "SIST-LQ Astrid Assistant"
+    }
+    for model in models:
         try:
-            from google import genai
-            client = genai.Client(api_key=gemini_key)
-            transcript_interaction = client.interactions.create(
-                model="gemini-3.8-flash",
-                input=sys_prompt + "\n\nPregunta del usuario: " + prompt_usuario
-            )
-            return transcript_interaction.output_text
+            payload = {
+                "model": model,
+                "messages": [
+                    {"role": "system", "content": sys_prompt},
+                    {"role": "user", "content": prompt_usuario}
+                ],
+                "temperature": 0.7,
+                "max_tokens": 800
+            }
+            r = requests.post("https://openrouter.ai/api/v1/chat/completions", json=payload, headers=headers, timeout=20)
+            if r.status_code == 200:
+                data = r.json()
+                choices = data.get("choices", [])
+                if choices and "message" in choices[0]:
+                    return choices[0]["message"]["content"]
+            else:
+                if current_app:
+                    current_app.logger.warning(f"OpenRouter modelo {model} retorno {r.status_code}: {r.text[:100]}")
         except Exception as e:
             if current_app:
-                current_app.logger.error(f"Error en respaldo Gemini: {e}")
+                current_app.logger.warning(f"Excepcion en OpenRouter ({model}): {e}")
 
-    raise RuntimeError("No se pudo conectar con el motor de IA (OpenRouter ni Gemini). Verifique su conexión y API keys.")
+    raise RuntimeError("No se pudo conectar con el motor de IA OpenRouter. Verifique su conexión y API key.")
 
 @bp.route("/api/astrid", methods=["POST"])
 def chat_astrid():

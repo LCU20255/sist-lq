@@ -31,11 +31,7 @@
             </p>
         </div>
 
-        <div class="flex items-center gap-3 z-10 flex-shrink-0 flex-wrap md:flex-nowrap">
-            <button type="button" id="btn-saludo-astrid" onclick="reproducirBienvenidaAstrid()" 
-               class="px-4 py-3 bg-gradient-to-r from-indigo-500/80 to-purple-600/80 hover:from-indigo-600 hover:to-purple-700 border border-white/20 text-white text-xs font-black rounded-2xl shadow-md hover:shadow-lg transition-all flex items-center">
-                <i class="bi bi-soundwave mr-2 text-amber-300 text-lg"></i>Saludo Astrid
-            </button>
+        <div class="flex items-center gap-3 z-10 flex-shrink-0">
             <button type="button" onclick="openOffcanvas()" 
                class="px-5 py-3 bg-white hover:bg-brand-50 text-brand-900 text-xs font-black rounded-2xl shadow-lg hover:shadow-xl transition-all flex items-center">
                 <i class="bi bi-file-earmark-plus-fill mr-2 text-brand-600 text-base"></i>Emitir Orden en Canvas
@@ -964,11 +960,10 @@
 <script>
     document.addEventListener('DOMContentLoaded', () => {
         const astridGreet = {{ astrid_greet | default(false) | tojson }};
-        if(astridGreet && typeof hablarAstrid === 'function') {
-            const nombre = '{{ session.get("user_nombre", "administrador") }}';
+        if(astridGreet && typeof reproducirBienvenidaAstrid === 'function') {
             setTimeout(() => {
-                hablarAstrid("Bienvenido " + nombre + ", soy Astrid. Todos los sistemas están en línea y a tu disposición.");
-            }, 1000);
+                reproducirBienvenidaAstrid();
+            }, 800);
         }
     });
 </script>
@@ -1649,47 +1644,35 @@ async function enviarMensajeAstrid() {
 
 let currentAstridAudio = null;
 function hablarAstrid(texto, audio_b64, audio_mime) {
+    // Si hay algún audio sonando previamente, detenerlo de inmediato
     if (currentAstridAudio) {
         try { currentAstridAudio.pause(); currentAstridAudio.currentTime = 0; } catch(e){}
     }
+    // Cancelar cualquier síntesis sintética del navegador
+    if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+    }
+    // Reproducir única y exclusivamente la voz neural realista (Edge TTS / MP3)
     if (audio_b64) {
         try {
             const mime = audio_mime || 'audio/mp3';
             currentAstridAudio = new Audio(`data:${mime};base64,` + audio_b64);
             currentAstridAudio.play().catch(e => {
-                console.warn("Reproducción automática bloqueada por navegador:", e);
+                console.warn("Reproducción automática:", e);
             });
-            return;
         } catch(e) { console.error("Error al reproducir audio:", e); }
-    }
-    if ('speechSynthesis' in window) {
-        window.speechSynthesis.cancel();
-        const utterance = new SpeechSynthesisUtterance(texto);
-        utterance.lang = 'es-VE';
-        utterance.text = (texto || '').replace(/[*#]/g, '');
-        window.speechSynthesis.speak(utterance);
     }
 }
 
 async function reproducirBienvenidaAstrid() {
-    const btn = document.getElementById('btn-saludo-astrid');
-    if (btn) {
-        btn.classList.add('animate-pulse', 'ring-2', 'ring-amber-300');
-    }
     try {
         const res = await fetch('/api/astrid/bienvenida');
         const data = await res.json();
         if (data.success && data.audio_b64) {
             hablarAstrid(data.saludo, data.audio_b64, data.audio_mime);
-        } else if (data.saludo) {
-            hablarAstrid(data.saludo);
         }
     } catch(e) {
-        console.warn("No se pudo obtener el saludo de Astrid:", e);
-    } finally {
-        if (btn) {
-            setTimeout(() => btn.classList.remove('animate-pulse', 'ring-2', 'ring-amber-300'), 3000);
-        }
+        console.warn("No se pudo obtener el saludo automático de Astrid:", e);
     }
 }
 
