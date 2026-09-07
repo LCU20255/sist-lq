@@ -1209,38 +1209,51 @@ def telegram_recuperar():
     except Exception as e:
         return jsonify({"success": False, "error": f"Error conectando con Telegram: {str(e)}"}), 500
 
-def _generar_edge_tts(texto, voice="es-VE-PaolaNeural"):
-    """
-    Genera audio MP3 de alta fidelidad con Microsoft Edge Neural TTS.
-    100% GRATUITO, SIN LÍMITES DE CARACTERES Y SIN API KEYS.
-    Voz nativa venezolana: es-VE-PaolaNeural
-    """
-    import asyncio
-    import concurrent.futures
-    try:
-        import edge_tts
-        async def _run():
-            communicate = edge_tts.Communicate(text=texto, voice=voice)
-            chunks = []
-            async for chunk in communicate.stream():
-                if chunk.get("type") == "audio":
-                    chunks.append(chunk["data"])
-            return b"".join(chunks)
+_piper_voice_instance = None
 
-        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-            return pool.submit(asyncio.run, _run()).result(timeout=15)
+def _obtener_piper_voice():
+    global _piper_voice_instance
+    if _piper_voice_instance is not None:
+        return _piper_voice_instance
+    try:
+        import piper
+        import urllib.request
+        model_name = os.getenv("PIPER_VOICE", "es_AR-daniela-high")
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        models_dir = os.path.join(base_dir, "piper_models")
+        os.makedirs(models_dir, exist_ok=True)
+        
+        model_path = os.path.join(models_dir, f"{model_name}.onnx")
+        config_path = os.path.join(models_dir, f"{model_name}.onnx.json")
+
+        # Auto-descarga automática si no existe en el servidor (Render / Cloud)
+        if not os.path.exists(model_path) or not os.path.exists(config_path):
+            if current_app:
+                current_app.logger.info(f"Descargando modelo Piper {model_name} desde Hugging Face...")
+            
+            hf_base = f"https://huggingface.co/rhasspy/piper-voices/resolve/main/es/es_AR/daniela/high/"
+            if not os.path.exists(config_path):
+                urllib.request.urlretrieve(f"{hf_base}{model_name}.onnx.json", config_path)
+            if not os.path.exists(model_path):
+                urllib.request.urlretrieve(f"{hf_base}{model_name}.onnx", model_path)
+
+        if os.path.exists(model_path):
+            _piper_voice_instance = piper.PiperVoice.load(model_path, config_path=config_path if os.path.exists(config_path) else None)
+            return _piper_voice_instance
     except Exception as e:
         if current_app:
-            current_app.logger.warning(f"Error generando Edge TTS: {e}")
-        return b""
+            current_app.logger.error(f"Error cargando o descargando PiperVoice: {e}")
+    return None
 
 def generar_audio_astrid(texto):
     """
-    Genera voz para Astrid utilizando exclusivamente Microsoft Edge Neural TTS.
-    100% GRATIS, ILIMITADO, SIN API KEYS, VOZ VENEZOLANA DE ALTA CALIDAD: es-VE-PaolaNeural.
+    Genera voz para Astrid utilizando exclusivamente Piper TTS (Open Source local ONNX).
+    100% OFFLINE, ULTRA LIGERO, SIN APIS EXTERNAS, VOZ LATINA FEMENINA (daniela-high).
     Retorna: (audio_b64, audio_mime)
     """
     import base64
+    import wave
+    import io
     
     texto_limpio = re.sub(r'[*#_`]', '', texto)
     texto_limpio = re.sub(r'[\U00010000-\U0010ffff]', '', texto_limpio).strip()
@@ -1248,13 +1261,18 @@ def generar_audio_astrid(texto):
         return "", ""
 
     try:
-        voz_edge = os.getenv("EDGE_TTS_VOICE", "es-VE-PaolaNeural")
-        audio_mp3 = _generar_edge_tts(texto_limpio[:2500], voice=voz_edge)
-        if audio_mp3:
-            return base64.b64encode(audio_mp3).decode("utf-8"), "audio/mp3"
-    except Exception as edge_err:
+        voice = _obtener_piper_voice()
+        if voice:
+            wav_io = io.BytesIO()
+            with wave.open(wav_io, 'wb') as wav_file:
+                voice.synthesize_wav(texto_limpio[:1500], wav_file)
+            
+            wav_data = wav_io.getvalue()
+            if wav_data:
+                return base64.b64encode(wav_data).decode("utf-8"), "audio/wav"
+    except Exception as piper_err:
         if current_app:
-            current_app.logger.warning(f"Error en Edge TTS: {edge_err}")
+            current_app.logger.error(f"Error generando Piper TTS: {piper_err}")
 
     return "", ""
 
@@ -1294,9 +1312,10 @@ def consultar_ia_astrid(prompt_usuario, usuario="Loreidy"):
     """
     sys_prompt = (
         f"Eres Astrid, la asistente virtual super inteligente del sistema Facturador SIST-LQ. "
-        f"Hablas en español venezolano cálido, eres profesional, muy amable y proactiva. "
+        f"Hablas en español latino cálido, eres profesional, muy amable y resolutiva. "
         f"El usuario con el que conversas se llama {usuario}. "
-        f"Ayúdalo en lo que necesite referente a facturación, sistema, o cualquier otra duda de negocios."
+        f"IMPORTANTE: Da respuestas claras, directas y concisas (máximo 2 a 3 oraciones o pasos breves) "
+        f"para que la respuesta hablada sea ágil e inmediata."
     )
     
     openrouter_key = os.getenv("OPENROUTER_API_KEY")
@@ -1304,9 +1323,9 @@ def consultar_ia_astrid(prompt_usuario, usuario="Loreidy"):
         raise RuntimeError("OPENROUTER_API_KEY no configurada en las variables de entorno.")
 
     models = [
-        os.getenv("OPENROUTER_MODEL", "nvidia/nemotron-3.5-lightning:free"),
-        "minimax/minimax-m3:free",
-        "google/gemma-4-26b-a4b-it:free"
+        os.getenv("OPENROUTER_MODEL", "liquid/lfm-2.5-2.6b:free"),
+        "nvidia/nemotron-3.5-lightning:free",
+        "minimax/minimax-m3:free"
     ]
     headers = {
         "Authorization": f"Bearer {openrouter_key}",
@@ -1321,15 +1340,26 @@ def consultar_ia_astrid(prompt_usuario, usuario="Loreidy"):
                     {"role": "system", "content": sys_prompt},
                     {"role": "user", "content": prompt_usuario}
                 ],
-                "temperature": 0.7,
-                "max_tokens": 800
+                "temperature": 0.6,
+                "max_tokens": 250
             }
-            r = requests.post("https://openrouter.ai/api/v1/chat/completions", json=payload, headers=headers, timeout=20)
+            r = requests.post("https://openrouter.ai/api/v1/chat/completions", json=payload, headers=headers, timeout=12)
             if r.status_code == 200:
                 data = r.json()
                 choices = data.get("choices", [])
                 if choices and "message" in choices[0]:
-                    return choices[0]["message"]["content"]
+                    msg = choices[0]["message"]
+                    texto_resp = msg.get("content") or ""
+                    # Si el modelo incluye cadenas de razonamiento previo tipo thinking
+                    if not texto_resp and msg.get("reasoning"):
+                        texto_resp = msg.get("reasoning")
+                    if "Here's a thinking process:" in texto_resp:
+                        # Limpiar posible prefijo de pensamiento
+                        partes = re.split(r'\n\n(?=[¡¿A-Z])', texto_resp)
+                        if len(partes) > 1:
+                            texto_resp = partes[-1]
+                    if texto_resp.strip():
+                        return texto_resp.strip()
             else:
                 if current_app:
                     current_app.logger.warning(f"OpenRouter modelo {model} retorno {r.status_code}: {r.text[:100]}")
