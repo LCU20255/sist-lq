@@ -1,0 +1,18 @@
+[
+  {
+    "timestamp": "2026-09-07T13:57:29.543577",
+    "usuario": "Administrador Principal",
+    "pregunta": "¿Cuál es el propósito del sistema?",
+    "pregunta_normalizada": "cual es el proposito del sistema",
+    "respuesta": "Hola Administrador Principal. Soy Astrid, el asistente inteligente y cerebro analítico del Facturador SIST-LQ.\n\nActualmente contamos con:\n• **2 órdenes de compra emitidas** (Total: $655.40 USD / Bs. 536,762.57)\n• **4 proveedores registrados** en el directorio\n• **Tasa oficial BCV:** $804.81 Bs/USD (EUR: €932.80 Bs)\n\nTengo acceso total para orientarte sobre precios, costos, auditoría, o generar reportes en Excel. ¿En qué puedo orientarte hoy?",
+    "veces_consultada": 1
+  },
+  {
+    "timestamp": "2026-09-07T14:01:46.862293",
+    "usuario": "Loreidy Qui",
+    "pregunta": "Cuales son los precios del catalogo?",
+    "pregunta_normalizada": "cuales son los precios del catalogo",
+    "respuesta": "Consultando el catálogo oficial de costos y precios en tiempo real (Tasa BCV: $804.81 Bs/USD):\n\n• **cama matrimonial** (UND): **$140.00 USD** (aprox. **Bs. 112,673.40** a tasa oficial BCV de $804.81 Bs/USD)\n• **COMPRA DE DRILL 100% ALGODON ROJO** (Metros): **$5.31 USD** (aprox. **Bs. 4,273.54** a tasa oficial BCV de $804.81 Bs/USD)\n• **TELA ALGODON EGIPTO COMERTEL** (Metros): **$4.65 USD** (aprox. **Bs. 3,742.37** a tasa oficial BCV de $804.81 Bs/USD)\n\nPuedes solicitarme modificar cualquiera de estos precios o registrar nuevos ítems cuando lo desees.",
+    "veces_consultada": 1
+  }
+]

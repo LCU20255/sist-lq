@@ -408,8 +408,14 @@
             <i class="bi bi-briefcase-fill text-brand-600 mr-2"></i>Crear Nuevo Proyecto
         </h4>
         <div class="space-y-3 text-xs">
-            <input type="text" id="m_proy_codigo" placeholder="Código Único (Ej. MUESTRAS INTEVEP) *" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 uppercase font-mono font-bold">
-            <input type="text" id="m_proy_nombre" placeholder="Nombre Descriptivo del Proyecto *" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5">
+            <div>
+                <label class="block font-bold text-slate-700 mb-1">Nombre Descriptivo del Proyecto <span class="text-rose-500">*</span></label>
+                <input type="text" id="m_proy_nombre" placeholder="Nombre Descriptivo (Ej. Modernización de Redes) *" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 outline-none" oninput="autoGenerarCodigoProyectoNuevaOrden()">
+            </div>
+            <div>
+                <label class="block font-bold text-slate-700 mb-1">Código Único <span class="text-[10px] text-emerald-600 font-bold ml-1"><i class="bi bi-magic mr-0.5"></i>Auto</span></label>
+                <input type="text" id="m_proy_codigo" placeholder="Auto: NOMBRE-09-2026 *" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 uppercase font-mono font-bold outline-none">
+            </div>
         </div>
         <div class="flex justify-end space-x-2 pt-2">
             <button type="button" onclick="cerrarModal('modalProyecto')" class="px-4 py-2 text-xs font-bold text-slate-600">Cancelar</button>
@@ -686,6 +692,21 @@
             .catch(err => alert("Error de red: " + err));
     }
 
+    function autoGenerarCodigoProyectoNuevaOrden() {
+        const nom = document.getElementById('m_proy_nombre').value;
+        const cod = document.getElementById('m_proy_codigo');
+        if (!cod) return;
+        if (!nom.trim()) { cod.value = ''; return; }
+        const now = new Date();
+        const mm = String(now.getMonth() + 1).padStart(2, '0');
+        const yyyy = now.getFullYear();
+        const suffix = `-${mm}-${yyyy}`;
+        let slug = nom.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/[^A-Z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+        const maxLen = 50 - suffix.length;
+        if (slug.length > maxLen) slug = slug.substring(0, maxLen).replace(/-+$/, '');
+        cod.value = slug ? `${slug}${suffix}` : '';
+    }
+
     // Guardar nuevo proyecto vía AJAX
     function guardarProyectoModal() {
         const cod = document.getElementById('m_proy_codigo').value.trim();
@@ -706,6 +727,8 @@
                     opt.innerText = `${data.codigo} — ${data.nombre}`;
                     opt.selected = true;
                     sel.appendChild(opt);
+                    document.getElementById('m_proy_codigo').value = '';
+                    document.getElementById('m_proy_nombre').value = '';
                     cerrarModal('modalProyecto');
                 } else {
                     alert(data.error || "Error al registrar proyecto.");

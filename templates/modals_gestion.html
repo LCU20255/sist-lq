@@ -235,12 +235,12 @@
             <form onsubmit="guardarProyectoDesdeModal(event)" class="space-y-3 text-xs">
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div>
-                        <label class="block font-bold text-slate-700 mb-1">Código Único <span class="text-rose-500">*</span></label>
-                        <input type="text" id="m_proy_codigo" required placeholder="PROY-2026-02" class="w-full px-3 py-2 bg-white border rounded-xl font-mono outline-none">
+                        <label class="block font-bold text-slate-700 mb-1">Código Único <span class="text-rose-500">*</span> <span class="text-[10px] text-emerald-600 font-bold ml-1"><i class="bi bi-magic mr-0.5"></i>Auto-generado</span></label>
+                        <input type="text" id="m_proy_codigo" required placeholder="NOMBRE-09-2026" class="w-full px-3 py-2 bg-slate-50 border rounded-xl font-mono outline-none font-bold text-brand-800 uppercase" oninput="onCodigoProyectoInput()">
                     </div>
                     <div>
                         <label class="block font-bold text-slate-700 mb-1">Nombre del Proyecto <span class="text-rose-500">*</span></label>
-                        <input type="text" id="m_proy_nombre" required placeholder="Modernización de Infraestructura de Redes" class="w-full px-3 py-2 bg-white border rounded-xl outline-none">
+                        <input type="text" id="m_proy_nombre" required placeholder="Modernización de Infraestructura de Redes" class="w-full px-3 py-2 bg-white border rounded-xl outline-none" oninput="autoGenerarCodigoProyecto()">
                     </div>
                 </div>
                 <div class="flex justify-end space-x-2 pt-1">
@@ -337,13 +337,62 @@
                         <th class="px-4 py-3">Descripción</th>
                         <th class="px-4 py-3 text-center w-28">Unidad</th>
                         <th class="px-4 py-3 text-right w-36">Precio Unit. ($)</th>
+                        <th class="px-4 py-3 text-center w-28">Acciones</th>
                     </tr>
                 </thead>
                 <tbody id="bodyModalCatalogo" class="divide-y divide-slate-100">
-                    <tr><td colspan="3" class="text-center py-8 text-slate-400">Cargando catálogo...</td></tr>
+                    <tr><td colspan="4" class="text-center py-8 text-slate-400">Cargando catálogo...</td></tr>
                 </tbody>
             </table>
         </div>
+    </div>
+</div>
+
+<!-- Modal para Editar Ítem del Catálogo -->
+<div id="modalEditarItemCatalogo" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4 animate-scale-up">
+        <div class="flex items-center justify-between border-b pb-3">
+            <div class="flex items-center space-x-2">
+                <div class="w-8 h-8 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center text-sm font-black">
+                    <i class="bi bi-pencil-square"></i>
+                </div>
+                <h4 class="font-black text-sm text-slate-900">Editar Producto / Servicio</h4>
+            </div>
+            <button type="button" onclick="cerrarModalEditarItemCatalogo()" class="text-slate-400 hover:text-slate-700">
+                <i class="bi bi-x-lg"></i>
+            </button>
+        </div>
+        <form onsubmit="guardarEdicionItemCatalogo(event)" class="space-y-3 text-xs">
+            <input type="hidden" id="edit_item_id" value="">
+            <div>
+                <label class="block font-bold text-slate-700 mb-1">Descripción del Ítem <span class="text-rose-500">*</span></label>
+                <input type="text" id="edit_item_desc" required class="w-full px-3 py-2 bg-slate-50 border rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-blue-500 font-bold text-slate-800">
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block font-bold text-slate-700 mb-1">Unidad <span class="text-rose-500">*</span></label>
+                    <select id="edit_item_unid" class="w-full px-3 py-2 bg-slate-50 border rounded-xl outline-none font-bold text-slate-800">
+                        <option value="UND">UND</option>
+                        <option value="Metros">Metros</option>
+                        <option value="Horas">Horas</option>
+                        <option value="Servicios">Servicios</option>
+                        <option value="Lote">Lote</option>
+                        <option value="KG">KG</option>
+                        <option value="SRV">SRV</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block font-bold text-slate-700 mb-1">Precio Unit. ($ USD) <span class="text-rose-500">*</span></label>
+                    <input type="number" step="0.01" min="0" id="edit_item_precio" required class="w-full px-3 py-2 bg-slate-50 border rounded-xl font-mono font-bold text-emerald-700 outline-none focus:bg-white focus:ring-2 focus:ring-emerald-500">
+                </div>
+            </div>
+            <div class="flex justify-end space-x-2 pt-2 border-t">
+                <button type="button" onclick="cerrarModalEditarItemCatalogo()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl">Cancelar</button>
+                <button type="submit" id="btnGuardarEdicionItem" class="px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white font-bold rounded-xl shadow-md flex items-center">
+                    <i class="bi bi-check2-circle mr-1.5"></i>Guardar Cambios
+                </button>
+            </div>
+        </form>
     </div>
 </div>
 
@@ -847,8 +896,61 @@
     // =========================================================================
     // 4. CARGA DE PROYECTOS
     // =========================================================================
+    let proyCodigoManual = false;
+
+    function autoGenerarCodigoProyecto() {
+        const inputNom = document.getElementById('m_proy_nombre');
+        const inputCod = document.getElementById('m_proy_codigo');
+        if (!inputNom || !inputCod) return;
+
+        if (proyCodigoManual && inputCod.value.trim() !== '') {
+            return;
+        }
+
+        const val = inputNom.value;
+        if (!val.trim()) {
+            inputCod.value = '';
+            return;
+        }
+
+        const now = new Date();
+        const mm = String(now.getMonth() + 1).padStart(2, '0');
+        const yyyy = now.getFullYear();
+        const suffix = `-${mm}-${yyyy}`;
+
+        // Normalizar acentos, mayúsculas, cambiar espacios y caracteres especiales a guión
+        let slug = val.normalize("NFD")
+                      .replace(/[\u0300-\u036f]/g, "")
+                      .toUpperCase()
+                      .replace(/[^A-Z0-9]+/g, "-")
+                      .replace(/^-+|-+$/g, "");
+
+        const maxSlugLen = 50 - suffix.length;
+        if (slug.length > maxSlugLen) {
+            slug = slug.substring(0, maxSlugLen).replace(/-+$/, '');
+        }
+
+        inputCod.value = slug ? `${slug}${suffix}` : '';
+    }
+
+    function onCodigoProyectoInput() {
+        const inputCod = document.getElementById('m_proy_codigo');
+        if (!inputCod) return;
+        if (!inputCod.value.trim()) {
+            proyCodigoManual = false;
+            autoGenerarCodigoProyecto();
+        } else {
+            proyCodigoManual = true;
+        }
+    }
+
     function toggleFormNuevoProyectoModal() {
-        document.getElementById('formNuevoProyectoContainer').classList.toggle('hidden');
+        const cont = document.getElementById('formNuevoProyectoContainer');
+        cont.classList.toggle('hidden');
+        if (!cont.classList.contains('hidden')) {
+            const nom = document.getElementById('m_proy_nombre');
+            if (nom) nom.focus();
+        }
     }
 
     async function cargarProyectosModal() {
@@ -884,8 +986,8 @@
         btn.disabled = true;
         btn.innerText = 'Guardando...';
 
-        const codigo = document.getElementById('m_proy_codigo').value;
-        const nombre = document.getElementById('m_proy_nombre').value;
+        const codigo = document.getElementById('m_proy_codigo').value.trim();
+        const nombre = document.getElementById('m_proy_nombre').value.trim();
 
         try {
             const res = await fetch('/api/proyectos/nuevo', {
@@ -895,6 +997,9 @@
             });
             const data = await res.json();
             if (res.ok && data.success) {
+                document.getElementById('m_proy_codigo').value = '';
+                document.getElementById('m_proy_nombre').value = '';
+                proyCodigoManual = false;
                 toggleFormNuevoProyectoModal();
                 cargarProyectosModal();
                 const sel = document.getElementById('canvas_proyecto_id');
@@ -922,24 +1027,143 @@
 
     async function cargarCatalogoModal() {
         const tbody = document.getElementById('bodyModalCatalogo');
-        tbody.innerHTML = '<tr><td colspan="3" class="text-center py-6 text-slate-400"><i class="bi bi-arrow-repeat animate-spin mr-2"></i>Consultando catálogo...</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="4" class="text-center py-6 text-slate-400"><i class="bi bi-arrow-repeat animate-spin mr-2"></i>Consultando catálogo...</td></tr>';
         try {
             const res = await fetch('/api/items');
             const data = await res.json();
             const items = data.items || [];
             if (items.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="3" class="text-center py-8 text-slate-400">No hay ítems en el catálogo</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="4" class="text-center py-8 text-slate-400">No hay ítems en el catálogo</td></tr>';
                 return;
             }
-            tbody.innerHTML = items.map(it => `
+            tbody.innerHTML = items.map(it => {
+                const precio = parseFloat(it.precio_referencial_usd || it.precio_unitario_usd || 0);
+                const descEscaped = (it.descripcion || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+                const unidEscaped = (it.unidad || 'UND').replace(/'/g, "\\'");
+                return `
                 <tr class="hover:bg-slate-50 transition-colors">
                     <td class="px-4 py-3 font-bold text-slate-900">${it.descripcion}</td>
                     <td class="px-4 py-3 text-center font-semibold text-slate-600">${it.unidad || 'UND'}</td>
-                    <td class="px-4 py-3 text-right font-mono font-black text-emerald-700">$${parseFloat(it.precio_referencial_usd || it.precio_unitario_usd || 0).toLocaleString('es-VE', {minimumFractionDigits: 2})}</td>
-                </tr>
-            `).join('');
+                    <td class="px-4 py-3 text-right font-mono font-black text-emerald-700">$${precio.toLocaleString('es-VE', {minimumFractionDigits: 2})}</td>
+                    <td class="px-4 py-3 text-center">
+                        <div class="flex items-center justify-center space-x-1.5">
+                            <button type="button" onclick="abrirModalEditarItemCatalogo('${it.id}', '${descEscaped}', '${unidEscaped}', ${precio})"
+                                    class="p-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg text-xs font-bold transition-all shadow-sm flex items-center" title="Editar Producto / Precio">
+                                <i class="bi bi-pencil-square"></i>
+                            </button>
+                            <button type="button" onclick="eliminarItemCatalogo('${it.id}', '${descEscaped}')"
+                                    class="p-1.5 bg-rose-50 text-rose-700 hover:bg-rose-100 rounded-lg text-xs font-bold transition-all shadow-sm flex items-center" title="Eliminar Producto">
+                                <i class="bi bi-trash3-fill"></i>
+                            </button>
+                        </div>
+                    </td>
+                </tr>`;
+            }).join('');
         } catch (e) {
-            tbody.innerHTML = '<tr><td colspan="3" class="text-center py-6 text-rose-500 font-bold">Error cargando catálogo</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="4" class="text-center py-6 text-rose-500 font-bold">Error cargando catálogo</td></tr>';
+        }
+    }
+
+    function abrirModalEditarItemCatalogo(id, desc, unid, precio) {
+        document.getElementById('edit_item_id').value = id;
+        document.getElementById('edit_item_desc').value = desc;
+        document.getElementById('edit_item_unid').value = unid || 'UND';
+        document.getElementById('edit_item_precio').value = precio;
+        document.getElementById('modalEditarItemCatalogo').classList.remove('hidden');
+    }
+
+    function cerrarModalEditarItemCatalogo() {
+        document.getElementById('modalEditarItemCatalogo').classList.add('hidden');
+    }
+
+    async function guardarEdicionItemCatalogo(e) {
+        e.preventDefault();
+        const id = document.getElementById('edit_item_id').value;
+        const descripcion = document.getElementById('edit_item_desc').value.trim();
+        const unidad = document.getElementById('edit_item_unid').value;
+        const precio_referencial_usd = parseFloat(document.getElementById('edit_item_precio').value) || 0;
+
+        const btn = document.getElementById('btnGuardarEdicionItem');
+        btn.disabled = true;
+        btn.innerHTML = '<i class="bi bi-arrow-repeat animate-spin mr-1.5"></i>Guardando...';
+
+        try {
+            const res = await fetch('/api/items/editar', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({id, descripcion, unidad, precio_referencial_usd})
+            });
+            const data = await res.json();
+            if (res.ok && data.success) {
+                cerrarModalEditarItemCatalogo();
+                cargarCatalogoModal();
+                if (typeof Swal !== 'undefined') {
+                    Swal.fire({
+                        icon: 'success',
+                        title: '¡Ítem Actualizado!',
+                        text: 'Los cambios se guardaron correctamente en el catálogo.',
+                        timer: 2000,
+                        showConfirmButton: false
+                    });
+                }
+            } else {
+                if (typeof Swal !== 'undefined') {
+                    Swal.fire({icon: 'error', title: 'Error', text: data.error || 'No se pudo actualizar el ítem'});
+                } else {
+                    alert(data.error || 'Error al actualizar ítem');
+                }
+            }
+        } catch (err) {
+            alert('Error de conexión con el servidor');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-check2-circle mr-1.5"></i>Guardar Cambios';
+        }
+    }
+
+    async function eliminarItemCatalogo(id, desc) {
+        let confirmar = false;
+        if (typeof Swal !== 'undefined') {
+            const result = await Swal.fire({
+                title: '¿Eliminar este ítem?',
+                html: `Se eliminará <b>"${desc}"</b> del catálogo.`,
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#e11d48',
+                cancelButtonColor: '#64748b',
+                confirmButtonText: '<i class="bi bi-trash3 mr-1"></i> Sí, Eliminar',
+                cancelButtonText: 'Cancelar'
+            });
+            confirmar = result.isConfirmed;
+        } else {
+            confirmar = confirm(`¿Estás seguro de eliminar "${desc}" del catálogo?`);
+        }
+
+        if (confirmar) {
+            try {
+                const res = await fetch('/api/items/eliminar', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({id})
+                });
+                const data = await res.json();
+                if (res.ok && data.success) {
+                    cargarCatalogoModal();
+                    if (typeof Swal !== 'undefined') {
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'Eliminado',
+                            text: 'El ítem fue retirado del catálogo.',
+                            timer: 1800,
+                            showConfirmButton: false
+                        });
+                    }
+                } else {
+                    alert(data.error || 'No se pudo eliminar el ítem');
+                }
+            } catch (err) {
+                alert('Error de conexión con el servidor');
+            }
         }
     }
 
@@ -963,7 +1187,6 @@
             if (res.ok && data.success) {
                 toggleFormNuevoItemModal();
                 cargarCatalogoModal();
-                // Si el canvas tiene select de catalogo, agregarlo
                 const sel = document.getElementById('canvasSelectCatalogo');
                 if (sel) {
                     const opt = new Option(`${data.item.descripcion} ($${data.item.precio_referencial_usd})`, data.item.id);
@@ -1275,6 +1498,10 @@
                     <p class="text-xs text-slate-500 font-medium">Tu asistente analítica de gestión y datos vivos</p>
                 </div>
             </div>
+            <button type="button" onclick="nuevoChatAstrid()" class="inline-flex items-center space-x-2 px-3.5 py-2 rounded-xl bg-white hover:bg-slate-100 text-indigo-700 font-bold text-xs border border-indigo-200 shadow-sm transition-all hover:scale-105 active:scale-95" title="Reiniciar conversación">
+                <i class="bi bi-arrow-clockwise text-indigo-600 text-sm"></i>
+                <span>Nuevo Chat</span>
+            </button>
         </div>
         <div class="flex-1 overflow-y-auto p-6 bg-slate-50 flex flex-col gap-4" id="astrid-chat-container">
             <!-- Chat messages go here -->
