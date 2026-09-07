@@ -1209,58 +1209,107 @@ def telegram_recuperar():
     except Exception as e:
         return jsonify({"success": False, "error": f"Error conectando con Telegram: {str(e)}"}), 500
 
-@bp.route("/api/astrid", methods=["POST"])
-def chat_astrid():
-    if "user_id" not in session:
-        return jsonify({"success": False, "error": "No autorizado. Inicie sesión."}), 401
-
+def _generar_edge_tts(texto, voice="es-VE-PaolaNeural"):
+    """
+    Genera audio MP3 de alta fidelidad con Microsoft Edge Neural TTS.
+    100% GRATUITO, SIN LÍMITES DE CARACTERES Y SIN API KEYS.
+    Voz nativa venezolana: es-VE-PaolaNeural
+    """
+    import asyncio
+    import concurrent.futures
     try:
-        from google import genai
-    except ImportError:
-        return jsonify({"success": False, "error": "El módulo google-genai no está instalado en el servidor."}), 500
+        import edge_tts
+        async def _run():
+            communicate = edge_tts.Communicate(text=texto, voice=voice)
+            chunks = []
+            async for chunk in communicate.stream():
+                if chunk.get("type") == "audio":
+                    chunks.append(chunk["data"])
+            return b"".join(chunks)
 
-    api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key:
-        return jsonify({"success": False, "error": "Falta configurar GEMINI_API_KEY en las variables de entorno (.env o Render)."}), 500
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+            return pool.submit(asyncio.run, _run()).result(timeout=15)
+    except Exception as e:
+        if current_app:
+            current_app.logger.warning(f"Error generando Edge TTS: {e}")
+        return b""
 
-    req_data = request.get_json(silent=True)
-    if not req_data or "prompt" not in req_data:
-        return jsonify({"success": False, "error": "No se proporcionó ningún texto."}), 400
+def generar_audio_astrid(texto, genai_client=None):
+    """
+    Genera voz para Astrid con arquitectura de alta fidelidad:
+    1. Si TTS_ENGINE == "elevenlabs" y ELEVENLABS_API_KEY está configurado: usa ElevenLabs.
+    2. Por defecto: usa Microsoft Edge Neural TTS (100% GRATIS, ILIMITADO, sin API keys, voz venezolana es-VE-PaolaNeural).
+    3. Si falla ElevenLabs, conmuta automáticamente a Edge TTS.
+    4. Respaldo terciario: Gemini 3.1 Flash TTS.
+    Retorna: (audio_b64, audio_mime)
+    """
+    import base64
+    import requests
+    
+    texto_limpio = re.sub(r'[*#_`]', '', texto)
+    texto_limpio = re.sub(r'[\U00010000-\U0010ffff]', '', texto_limpio).strip()
+    if not texto_limpio:
+        return "", ""
 
-    usuario = session.get("user_nombre", "Loreidy")
-    prompt_usuario = req_data["prompt"]
+    tts_engine = os.getenv("TTS_ENGINE", "edge").lower()
 
-    sys_prompt = f"Eres Astrid, la asistente virtual super inteligente del sistema Facturador SIST-LQ. Hablas en español venezolano, eres profesional, muy amable y proactiva. El usuario con el que hablas se llama {usuario}. Ayúdalo en lo que necesite referente a facturación, sistema, o cualquier otra duda de negocios."
+    # Si se especificó ElevenLabs
+    if tts_engine == "elevenlabs":
+        el_key = os.getenv("ELEVENLABS_API_KEY")
+        voice_id = os.getenv("ELEVENLABS_VOICE_ID", "EXAVITQu4vr4xnSDxMaL")
+        if el_key:
+            try:
+                url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
+                headers = {
+                    "xi-api-key": el_key,
+                    "Content-Type": "application/json"
+                }
+                payload = {
+                    "text": texto_limpio[:1000],
+                    "model_id": "eleven_multilingual_v2",
+                    "voice_settings": {
+                        "stability": 0.5,
+                        "similarity_boost": 0.8
+                    }
+                }
+                r = requests.post(url, json=payload, headers=headers, timeout=12)
+                if r.status_code == 200 and r.content:
+                    return base64.b64encode(r.content).decode("utf-8"), "audio/mp3"
+                else:
+                    if current_app:
+                        current_app.logger.warning(f"ElevenLabs retorno {r.status_code}. Aplicando fallback a Edge TTS.")
+            except Exception as e:
+                if current_app:
+                    current_app.logger.warning(f"Error ElevenLabs: {e}. Aplicando fallback a Edge TTS.")
 
+    # 1. Motor Gratis e Ilimitado: Edge TTS (Voz femenina Paola de Venezuela)
     try:
-        client = genai.Client(api_key=api_key)
-        
-        # 1. Generar texto
-        transcript_interaction = client.interactions.create(
-            model="gemini-3.8-flash",
-            input=sys_prompt + "\n\nPregunta del usuario: " + prompt_usuario
-        )
-        respuesta_texto = transcript_interaction.output_text
-        
-        # 2. Generar audio (TTS con gemini-3.1-flash-tts-preview y voz femenina Kore)
-        audio_b64 = ""
-        try:
-            import base64
+        voz_edge = os.getenv("EDGE_TTS_VOICE", "es-VE-PaolaNeural")
+        audio_mp3 = _generar_edge_tts(texto_limpio[:2000], voice=voz_edge)
+        if audio_mp3:
+            return base64.b64encode(audio_mp3).decode("utf-8"), "audio/mp3"
+    except Exception as edge_err:
+        if current_app:
+            current_app.logger.warning(f"Error en Edge TTS: {edge_err}")
+
+    # 2. Fallback a Google Gemini 3.1 Flash TTS
+    try:
+        if genai_client is None:
+            gemini_key = os.getenv("GEMINI_API_KEY")
+            if gemini_key:
+                from google import genai
+                genai_client = genai.Client(api_key=gemini_key)
+                
+        if genai_client:
             import wave
             import io
-            
-            stream = client.interactions.create(
+            stream = genai_client.interactions.create(
                 model="gemini-3.1-flash-tts-preview",
-                input=respuesta_texto,
+                input=texto_limpio[:1500],
                 response_format={"type": "audio"},
-                generation_config={
-                    "speech_config": [
-                        {"voice": "Kore"}
-                    ]
-                },
+                generation_config={"speech_config": [{"voice": "Kore"}]},
                 stream=True
             )
-            
             pcm_chunks = []
             for event in stream:
                 if getattr(event, 'event_type', None) == 'step.delta':
@@ -1275,14 +1324,133 @@ def chat_astrid():
                     wf.setsampwidth(2)
                     wf.setframerate(24000)
                     wf.writeframes(pcm)
-                audio_b64 = base64.b64encode(wav_io.getvalue()).decode('utf-8')
-        except Exception as tts_err:
-            current_app.logger.error(f"Error generando TTS de Astrid: {tts_err}")
+                return base64.b64encode(wav_io.getvalue()).decode('utf-8'), "audio/wav"
+    except Exception as gem_err:
+        if current_app:
+            current_app.logger.error(f"Error en Gemini TTS fallback: {gem_err}")
+
+    return "", ""
+
+@bp.route("/api/astrid/bienvenida", methods=["GET", "POST"])
+def astrid_bienvenida():
+    if "user_id" not in session:
+        return jsonify({"success": False, "error": "No autorizado"}), 401
+        
+    usuario = session.get("user_nombre", "Loreidy")
+    
+    # Hora local de Venezuela (UTC-4)
+    utc_now = datetime.datetime.now(datetime.timezone.utc)
+    hora_ve = (utc_now - datetime.timedelta(hours=4)).hour
+    
+    if 5 <= hora_ve < 12:
+        saludo_tiempo = "¡Buenos días"
+    elif 12 <= hora_ve < 19:
+        saludo_tiempo = "¡Buenas tardes"
+    else:
+        saludo_tiempo = "¡Buenas noches"
+        
+    texto_saludo = f"{saludo_tiempo}, {usuario}! Soy Astrid. Todos los sistemas del Facturador SIST-LQ están en línea y a tu disposición."
+    
+    audio_b64, audio_mime = generar_audio_astrid(texto_saludo)
+    
+    return jsonify({
+        "success": True,
+        "saludo": texto_saludo,
+        "audio_b64": audio_b64,
+        "audio_mime": audio_mime
+    })
+
+def consultar_ia_astrid(prompt_usuario, usuario="Loreidy"):
+    """
+    Motor cognitivo de Astrid:
+    1. Utiliza OpenRouter API (modelos gratuitos de alto rendimiento como Nemotron y MiniMax).
+    2. Si OpenRouter no responde, usa Google Gemini como respaldo.
+    """
+    sys_prompt = (
+        f"Eres Astrid, la asistente virtual super inteligente del sistema Facturador SIST-LQ. "
+        f"Hablas en español venezolano cálido, eres profesional, muy amable y proactiva. "
+        f"El usuario con el que conversas se llama {usuario}. "
+        f"Ayúdalo en lo que necesite referente a facturación, sistema, o cualquier otra duda de negocios."
+    )
+    
+    # 1. Intentar OpenRouter
+    openrouter_key = os.getenv("OPENROUTER_API_KEY")
+    if openrouter_key:
+        models = [
+            os.getenv("OPENROUTER_MODEL", "nvidia/nemotron-3.5-lightning:free"),
+            "minimax/minimax-m3:free",
+            "google/gemma-4-26b-a4b-it:free"
+        ]
+        headers = {
+            "Authorization": f"Bearer {openrouter_key}",
+            "HTTP-Referer": "https://sis-fact-lq.onrender.com",
+            "X-Title": "SIST-LQ Astrid Assistant"
+        }
+        for model in models:
+            try:
+                payload = {
+                    "model": model,
+                    "messages": [
+                        {"role": "system", "content": sys_prompt},
+                        {"role": "user", "content": prompt_usuario}
+                    ],
+                    "temperature": 0.7,
+                    "max_tokens": 800
+                }
+                r = requests.post("https://openrouter.ai/api/v1/chat/completions", json=payload, headers=headers, timeout=20)
+                if r.status_code == 200:
+                    data = r.json()
+                    choices = data.get("choices", [])
+                    if choices and "message" in choices[0]:
+                        return choices[0]["message"]["content"]
+                else:
+                    if current_app:
+                        current_app.logger.warning(f"OpenRouter modelo {model} retorno {r.status_code}: {r.text[:100]}")
+            except Exception as e:
+                if current_app:
+                    current_app.logger.warning(f"Excepcion en OpenRouter ({model}): {e}")
+
+    # 2. Respaldo Gemini si está disponible
+    gemini_key = os.getenv("GEMINI_API_KEY")
+    if gemini_key:
+        try:
+            from google import genai
+            client = genai.Client(api_key=gemini_key)
+            transcript_interaction = client.interactions.create(
+                model="gemini-3.8-flash",
+                input=sys_prompt + "\n\nPregunta del usuario: " + prompt_usuario
+            )
+            return transcript_interaction.output_text
+        except Exception as e:
+            if current_app:
+                current_app.logger.error(f"Error en respaldo Gemini: {e}")
+
+    raise RuntimeError("No se pudo conectar con el motor de IA (OpenRouter ni Gemini). Verifique su conexión y API keys.")
+
+@bp.route("/api/astrid", methods=["POST"])
+def chat_astrid():
+    if "user_id" not in session:
+        return jsonify({"success": False, "error": "No autorizado. Inicie sesión."}), 401
+
+    req_data = request.get_json(silent=True)
+    if not req_data or "prompt" not in req_data:
+        return jsonify({"success": False, "error": "No se proporcionó ningún texto."}), 400
+
+    usuario = session.get("user_nombre", "Loreidy")
+    prompt_usuario = req_data["prompt"]
+
+    try:
+        # 1. Generar texto cognitivo con OpenRouter
+        respuesta_texto = consultar_ia_astrid(prompt_usuario, usuario)
+        
+        # 2. Generar audio (ElevenLabs primario con fallback a Gemini TTS)
+        audio_b64, audio_mime = generar_audio_astrid(respuesta_texto)
 
         return jsonify({
             "success": True, 
             "respuesta": respuesta_texto,
-            "audio_b64": audio_b64
+            "audio_b64": audio_b64,
+            "audio_mime": audio_mime
         })
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500

@@ -30,3 +30,4 @@ gunicorn>=21.2.0
 waitress>=3.0.0
 
 google-genai>=0.2.2
+edge-tts>=7.0.0
