@@ -129,7 +129,7 @@ MOCK_MOVIMIENTOS = [
         "accion": "INICIALIZACION",
         "modulo": "SISTEMA",
         "descripcion": "Sistema SIST-LQ conectado exitosamente con Supabase y DolarApi BCV.",
-        "created_at": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        "created_at": datetime.datetime.now(datetime.timezone.utc).isoformat()
     }
 ]
 
@@ -148,9 +148,9 @@ def format_decimal(value, places=2):
 def registrar_movimiento(usuario_nombre, accion, modulo, descripcion, detalles=None):
     supabase = getattr(current_app, "supabase", None)
     import datetime, uuid
-    now_ve = datetime.datetime.now()
-    now_iso = now_ve.strftime("%Y-%m-%dT%H:%M:%S-04:00")
-    mov_id = f"mov-{uuid.uuid4().hex[:10]}"
+    now_utc = datetime.datetime.now(datetime.timezone.utc)
+    now_iso = now_utc.isoformat()
+    mov_id = str(uuid.uuid4())
     mov_obj = {
         "id": mov_id,
         "usuario_nombre": usuario_nombre or "Usuario SIST-LQ",
@@ -2482,7 +2482,6 @@ def consultar_ia_astrid(prompt_usuario, usuario="Loreidy", historial=None):
                         texto_resp = re.sub(r'\*\*([^*]+)\*\*', r'\1', texto_resp)
                         texto_resp = re.sub(r'\*([^*]+)\*', r'\1', texto_resp)
                         texto_resp = texto_resp.strip()
-
                         if texto_resp:
                             return texto_resp
             except Exception as e:
@@ -2493,18 +2492,42 @@ def consultar_ia_astrid(prompt_usuario, usuario="Loreidy", historial=None):
     return _responder_con_datos_locales_astrid(prompt_usuario, ctx, accion_res, usuario, historial=historial)
 
 
+def _formatear_fecha_ve(fecha_str):
+    """Convierte fecha UTC ISO a formato venezolano legible (DD/MM/YYYY hh:mm AM/PM)."""
+    if not fecha_str:
+        return "Fecha no disponible"
+    try:
+        s = str(fecha_str).strip().replace(" ", "T")
+        if not s.endswith("Z") and "+" not in s and "-" not in s[10:]:
+            s += "Z"
+        dt = datetime.datetime.fromisoformat(s.replace("Z", "+00:00"))
+        # Venezuela is UTC-4
+        dt_ve = dt - datetime.timedelta(hours=4)
+        return dt_ve.strftime("%d/%m/%Y %I:%M %p")
+    except Exception:
+        return str(fecha_str)[:19]
+
+
 def _responder_con_datos_locales_astrid(prompt_usuario, ctx, accion_res, usuario, historial=None):
     """
-    Motor analítico local con acceso total a los datos vivos del sistema cuando el modelo
-    externo está en mantenimiento o bajo límites de cuota (rate limits), con soporte
-    completo para memoria conversacional multiturno (preguntas de seguimiento y anáforas),
-    reportes ejecutivos con gráficas interactivas Chart.js y detección de ruido.
+    Motor analítico y cognitivo integral de Astrid con acceso total y en tiempo real a:
+    - Precios y costos del catálogo (con conversión bimonetaria oficial BCV).
+    - Órdenes de compra, montos acumulados y firmantes autorizados.
+    - Directorio bancario y fiscal completo de proveedores.
+    - Auditoría y trazabilidad histórica en hora local venezolana.
+    - Generación de reportes ejecutivos con gráficas interactivas Chart.js.
+    - Soporte contextual multiturno sin falsas suposiciones ni colisión de palabras clave.
     """
     p_clean = prompt_usuario.strip()
     p_lower = p_clean.lower()
     tasa_usd = ctx.get("tasa_bcv", 813.74)
     tasa_eur = ctx.get("tasa_eur", 945.65)
     tasa_prom = ctx.get("tasa_promedio", round((tasa_usd + tasa_eur) / 2.0, 4))
+
+    provs = ctx.get("proveedores_detalle", [])
+    items_cat = ctx.get("items_catalogo", [])
+    ords = ctx.get("ordenes_recientes", [])
+    movs = ctx.get("movimientos_recientes", [])
 
     # 1. Si se ejecutó una acción operativa en base de datos:
     if accion_res and accion_res.get("ejecutada"):
@@ -2514,255 +2537,276 @@ def _responder_con_datos_locales_astrid(prompt_usuario, ctx, accion_res, usuario
             f"Los datos han sido actualizados en tiempo real y el movimiento quedó asentado en la auditoría del sistema."
         )
 
-    # 2. Detección de pruebas / ruido / caracteres repetidos (ej. "ggg", "asdf", "test", etc.)
-    es_repetido = bool(re.match(r'^(.)\1+$', p_lower))
-    palabras_prueba = ["ggg", "asdf", "asdasd", "qwerty", "zxcv", "123", "test", "prueba", "probando", "...", "???"]
-    es_ruido = es_repetido or p_lower in palabras_prueba or (len(p_lower) <= 3 and p_lower not in ["usd", "eur", "bcv", "ver", "hoy", "mas", "más", "cta", "rif"])
+    # 2. Saludos de cortesía
+    saludos_exactos = ["hola", "buen dia", "buenos dias", "buen día", "buenos días", "buenas tardes", "buenas noches", "saludos", "que tal", "qué tal", "hey", "hola astrid", "como estas", "cómo estás"]
+    if p_lower in saludos_exactos or p_lower.startswith("hola astrid"):
+        return (
+            f"¡Hola, {usuario}! Un gusto saludarte. Soy Astrid, el cerebro analítico y asistente inteligente del Facturador SIST-LQ.\n\n"
+            f"Tengo acceso total y en tiempo real a precios de catálogo, órdenes de compra emitidas, directorio de proveedores, trazabilidad y tasas oficiales BCV.\n\n"
+            f"¿Qué deseas consultar o gestionar hoy?"
+        )
 
-    if es_ruido:
+    # 3. Cortesías de cierre / conformidad ("gracias", "ok", "perfecto")
+    if any(k == p_lower or p_lower.startswith(k + " ") for k in ["gracias", "muchas gracias", "agradecido", "agradecida", "perfecto", "excelente", "entendido", "ok", "listo"]):
+        return (
+            f"¡Con mucho gusto, {usuario}! Quedo a tu disposición para cualquier consulta contable, modificación de precios, órdenes de compra o reportes ejecutivos. ¡Éxito en tu jornada!"
+        )
+
+    # 4. Detección de ruido real (solo repeticiones o teclazos evidentes como "ggg", "asdf", etc.)
+    es_repetido = bool(re.match(r'^(.)\1{2,}$', p_lower))
+    palabras_ruido = ["asdf", "asdasd", "qwerty", "zxcv", "123", "test", "probando", "...", "???"]
+    if es_repetido or p_lower in palabras_ruido:
         return (
             f"Hola {usuario}. He recibido tu mensaje (`{p_clean}`), pero parece ser una prueba o estar incompleto.\n\n"
             f"¿En qué puedo orientarte hoy? Puedes consultarme sobre:\n"
-            f"• **Costos y precios:** *'¿Cuánto cuesta la cama matrimonial a tasa promedio?'*\n"
-            f"• **Reportes con gráficas:** *'Dame un reporte con gráficas del estatus actual de mis proveedores'*\n"
-            f"• **Compras y órdenes:** *'¿Cuáles son las últimas órdenes emitidas?'*\n"
-            f"• **Directorio bancario:** *'Muéstrame los proveedores y sus cuentas bancarias'*."
+            f"• **Costos y precios:** *'¿Cuánto cuesta el drill 100% algodón?'*\n"
+            f"• **Órdenes de compra:** *'¿Cuáles son las últimas órdenes emitidas?'*\n"
+            f"• **Proveedores:** *'Información de Comertel'* o *'Directorio bancario de proveedores'*\n"
+            f"• **Tasas oficiales:** *'¿Cuál es la tasa oficial BCV?'*\n"
+            f"• **Reportes con gráficas:** *'Dame un reporte con gráficas de proveedores'*."
         )
 
-    # 3. Detección de saludo corto ("hola", "buenos días", "buenas tardes", "saludos")
-    saludos_exactos = ["hola", "buen dia", "buenos dias", "buen día", "buenos días", "buenas tardes", "buenas noches", "saludos", "que tal", "qué tal", "hey", "hola astrid"]
-    if p_lower in saludos_exactos or p_lower.startswith("hola astrid"):
+    # STOPWORDS que no pueden usarse de forma aislada para inferir un producto
+    STOPWORDS_ITEM = {
+        "compra", "compras", "orden", "ordenes", "órdenes", "para", "cada",
+        "tipo", "nuevo", "nueva", "gran", "alta", "baja", "pago", "pagos",
+        "total", "totales", "item", "ítem", "items", "con", "por", "sin",
+        "sobre", "desde", "hasta", "como", "cómo", "cual", "cuál", "cuales",
+        "cuáles", "donde", "dónde", "quien", "quién", "este", "esta", "estos",
+        "estas", "precio", "precios", "costo", "costos", "tasa", "tasas",
+        "dame", "ver", "dime", "muestrame", "muéstrame", "cual", "cuál",
+        "cuanto", "cuánto", "cuesta", "cuestan", "vale", "valen", "informacion",
+        "información", "datos", "de", "el", "la", "los", "las", "un", "una"
+    }
+
+    # Búsqueda de proveedor específico mencionado en el prompt
+    prov_mencionado = None
+    for p in provs:
+        rz = (p.get("razon_social") or "").strip().lower()
+        rif = (p.get("rif") or "").strip().lower()
+        if rz and (rz in p_lower or any(w in p_lower for w in rz.split() if len(w) > 4 and w not in ["empresa", "soluciones", "tecnologicas", "tecnológicas", "inversiones"])):
+            prov_mencionado = p
+            break
+        if rif and rif in p_lower:
+            prov_mencionado = p
+            break
+
+    # Identificación si el usuario solicita expresamente precios / catálogo
+    pide_precio = any(k in p_lower for k in ["precio", "costo", "catálogo", "catalogo", "cuánto", "cuanto", "cuesta", "vale", "cotiz", "tarifa"])
+    item_mencionado = None
+    for it in items_cat:
+        desc = (it.get("descripcion") or "").strip().lower()
+        if desc in p_lower:
+            item_mencionado = it
+            break
+        palabras_it = [w for w in desc.split() if len(w) > 3 and w not in STOPWORDS_ITEM]
+        coincidencias = [w for w in palabras_it if w in p_lower]
+        if len(coincidencias) >= 2 or (len(coincidencias) == 1 and len(coincidencias[0]) >= 5 and not prov_mencionado):
+            item_mencionado = it
+            break
+
+    # Memoria multiturno para seguimiento de preguntas sobre ítems (SOLO en preguntas de seguimiento o anáforas)
+    palabras_seguimiento = ["y ", "y a ", "también", "tambien", "como sale", "cuanto seria", "cuánto sería", "a tasa", "en promedio", "en euro", "en eur", "en bs"]
+    es_seguimiento = any(p_lower.startswith(p) for p in palabras_seguimiento) or (len(p_lower.split()) <= 4 and any(k in p_lower for k in ["promedio", "euro", "eur", "bcv", "dolar", "dólar"]))
+
+    if not item_mencionado and not prov_mencionado and historial and es_seguimiento:
+        for turn in reversed(historial):
+            t_content = (turn.get("content") or "").lower()
+            for it in items_cat:
+                desc = (it.get("descripcion") or "").strip().lower()
+                palabras_it = [w for w in desc.split() if len(w) > 3 and w not in STOPWORDS_ITEM]
+                if desc in t_content or any(w in t_content for w in palabras_it if len(w) >= 5):
+                    item_mencionado = it
+                    break
+            if item_mencionado:
+                break
+
+    # 5. PREGUNTAS DE SEGUIMIENTO SOBRE TASAS (Anáforas para el ítem en contexto)
+    if item_mencionado and any(k in p_lower for k in ["promedio", "tasa promedio", "en promedio"]):
+        p_usd = float(item_mencionado.get("precio_referencial_usd") or 0)
+        p_prom = round(p_usd * tasa_prom, 2)
         return (
-            f"¡Hola, {usuario}! Un gusto saludarte. Soy Astrid, el asistente inteligente y cerebro analítico del Facturador SIST-LQ.\n\n"
-            f"Tengo acceso total y en tiempo real a precios de catálogo, órdenes emitidas, proveedores, trazabilidad y tasas oficiales BCV. ¿Qué deseas consultar hoy?"
+            f"Calculando a **tasa promedio ponderada oficial BCV** (${tasa_prom:,.2f} Bs/USD):\n\n"
+            f"• **{item_mencionado.get('descripcion')}** ({item_mencionado.get('unidad', 'UND')}):\n"
+            f"  - Precio base: **${p_usd:,.2f} USD**\n"
+            f"  - Equivalente: **Bs. {p_prom:,.2f}** (a tasa promedio)\n"
+            f"  - A tasa oficial USD (${tasa_usd:,.2f} Bs): **Bs. {p_usd * tasa_usd:,.2f}**\n\n"
+            f"*(Tasas oficiales vigentes: USD ${tasa_usd:,.2f} Bs | EUR €{tasa_eur:,.2f} Bs | Promedio ${tasa_prom:,.2f} Bs)*"
         )
 
-    # 4. Reportes con gráficas y análisis visual de proveedores
-    peticion_grafica = any(k in p_lower for k in ["grafica", "gráfica", "graficas", "gráficas", "grafico", "gráfico", "graficos", "gráficos", "chart", "visual"])
-    peticion_reporte = any(k in p_lower for k in ["reporte", "informe", "estatus", "analisis", "análisis", "resumen ejecutivo", "balance"])
+    if item_mencionado and any(k in p_lower for k in ["euro", "euros", "en eur", "en euros"]):
+        p_usd = float(item_mencionado.get("precio_referencial_usd") or 0)
+        p_eur_equiv = round((p_usd * tasa_usd) / tasa_eur, 2) if tasa_eur else 0
+        p_bs_eur = round(p_usd * tasa_eur, 2)
+        return (
+            f"Calculando con la **tasa EUR oficial BCV** (€{tasa_eur:,.2f} Bs):\n\n"
+            f"• **{item_mencionado.get('descripcion')}** ({item_mencionado.get('unidad', 'UND')}):\n"
+            f"  - Precio base: **${p_usd:,.2f} USD**\n"
+            f"  - Equivalente en Euros: **€{p_eur_equiv:,.2f} EUR**\n"
+            f"  - En Bolívares a tasa Euro: **Bs. {p_bs_eur:,.2f}**"
+        )
 
-    if (peticion_grafica or peticion_reporte) and any(k in p_lower for k in ["proveedor", "proveedores", "suplidor"]):
-        provs = ctx.get("proveedores_detalle", [])
-        ords = ctx.get("ordenes_recientes", [])
-        
+    # 6. CONSULTA DE TASAS OFICIALES BCV (Dólar, Euro, Promedio)
+    es_pregunta_tasa_pura = any(k in p_lower for k in ["tasa", "tasas", "dolar", "dólar", "euro", "euros", "bcv", "cotizacion", "cotización", "promedio"]) and not pide_precio and not prov_mencionado
+    if es_pregunta_tasa_pura:
+        return (
+            f"📈 **Tasas Oficiales del Banco Central de Venezuela (BCV) en Tiempo Real:**\n\n"
+            f"• **Dólar Oficial (USD):** **${tasa_usd:,.2f} Bs/USD**\n"
+            f"• **Euro Oficial (EUR):** **€{tasa_eur:,.2f} Bs/EUR**\n"
+            f"• **Tasa Promedio Ponderada:** **${tasa_prom:,.2f} Bs/USD**\n\n"
+            f"Todas las conversiones contables, órdenes de compra y cotizaciones del catálogo se calculan con estas tasas oficiales."
+        )
+
+    # 7. CONSULTA DE PROVEEDOR ESPECÍFICO (Prioridad sobre ítem con nombre de proveedor)
+    if prov_mencionado and not pide_precio:
+        nom_p = prov_mencionado.get("razon_social")
+        ords_p = [o for o in ords if (o.get("proveedor") or "").strip().lower() == nom_p.lower()]
+        tot_p_usd = sum(o["total_usd"] for o in ords_p)
+        tot_p_bs = sum(o["total_bs"] for o in ords_p)
+
+        lineas_ord_p = []
+        for op in ords_p[:3]:
+            lineas_ord_p.append(f"  - Orden #{op['nro']} ({op['fecha']}): ${op['total_usd']:,.2f} USD")
+
+        resumen_compras = (
+            f"• **Compras registradas:** {len(ords_p)} orden(es) por un total de **${tot_p_usd:,.2f} USD** (Bs. {tot_p_bs:,.2f})\n" + ("\n".join(lineas_ord_p) if lineas_ord_p else "")
+            if ords_p else "• **Compras registradas:** Sin órdenes de compra emitidas aún."
+        )
+
+        return (
+            f"🏢 **Ficha Oficial de Proveedor: {nom_p}**\n\n"
+            f"• **RIF:** {prov_mencionado.get('rif') or 'N/A'}\n"
+            f"• **Banco:** {prov_mencionado.get('banco') or 'No registrado'}\n"
+            f"• **Número de Cuenta:** `{prov_mencionado.get('num_cuenta') or 'No registrado'}`\n"
+            f"• **Teléfono:** {prov_mencionado.get('telefono') or 'No registrado'}\n"
+            f"• **Correo Electrónico:** {prov_mencionado.get('email') or 'No registrado'}\n\n"
+            f"{resumen_compras}\n\n"
+            f"*(Puedes descargar el directorio completo en Excel: [📥 Descargar Directorio (.xlsx)](/api/exportar/proveedores))*"
+        )
+
+    # 8. REPORTES CON GRÁFICAS (Chart.js)
+    peticion_grafica = any(k in p_lower for k in ["grafica", "gráfica", "graficas", "gráficas", "chart", "visual", "pastel", "torta", "barras"])
+    peticion_reporte = any(k in p_lower for k in ["reporte", "informe", "balance", "resumen ejecutivo", "dashboard"])
+
+    if peticion_grafica or (peticion_reporte and any(k in p_lower for k in ["proveedor", "proveedores", "suplidor"])):
         gastos_prov = {}
-        ordenes_prov = {}
         for o in ords:
-            nom_p = o.get("proveedor", "Proveedor")
-            monto = float(o.get("total_usd") or 0.0)
-            gastos_prov[nom_p] = gastos_prov.get(nom_p, 0.0) + monto
-            ordenes_prov[nom_p] = ordenes_prov.get(nom_p, 0) + 1
-
+            nom_prov = o.get("proveedor", "Proveedor")
+            gastos_prov[nom_prov] = gastos_prov.get(nom_prov, 0.0) + o["total_usd"]
         for p in provs:
             nom = p.get("razon_social")
             if nom and nom not in gastos_prov:
                 gastos_prov[nom] = 0.0
-                ordenes_prov[nom] = 0
 
-        prov_ordenados = sorted(gastos_prov.items(), key=lambda x: x[1], reverse=True)
-        top_nombre, top_monto = prov_ordenados[0] if prov_ordenados else ("N/A", 0.0)
-
-        chart_labels = [item[0] for item in prov_ordenados[:6]]
-        chart_data = [round(item[1], 2) for item in prov_ordenados[:6]]
+        prov_sorted = sorted(gastos_prov.items(), key=lambda x: x[1], reverse=True)
+        chart_labels = [x[0] for x in prov_sorted[:6]]
+        chart_data = [round(x[1], 2) for x in prov_sorted[:6]]
         if sum(chart_data) == 0:
             chart_data = [1 for _ in chart_labels]
 
         chart_config = {
             "type": "doughnut",
-            "title": "Distribución de Facturación por Proveedor (USD)",
+            "title": "Distribución de Compras por Proveedor (USD)",
             "labels": chart_labels,
             "data": chart_data
         }
         chart_json = json.dumps(chart_config)
 
-        lineas_det = []
-        for nom, monto in prov_ordenados:
-            n_o = ordenes_prov.get(nom, 0)
+        lineas_p = []
+        for nom, monto in prov_sorted[:6]:
             banco = next((p.get("banco", "N/A") for p in provs if p.get("razon_social") == nom), "N/A")
-            lineas_det.append(f"• **{nom}** (Banco: {banco}): **${monto:,.2f} USD** ({n_o} {'orden emitida' if n_o == 1 else 'órdenes emitidas'})")
+            lineas_p.append(f"• **{nom}** (Banco: {banco}): **${monto:,.2f} USD**")
 
         return (
-            f"📊 **Reporte Ejecutivo y Estatus de Proveedores en Tiempo Real**\n\n"
-            f"Actualmente contamos con **{len(provs)} proveedores** registrados en el directorio:\n\n"
-            f"• **Volumen Facturado Acumulado:** **${ctx['total_usd']:,.2f} USD** (aprox. **Bs. {ctx['total_bs']:,.2f}** a tasa BCV)\n"
-            f"• **Mayor Volumen de Compras:** **{top_nombre}** con **${top_monto:,.2f} USD**\n"
-            f"• **Tasa Oficial BCV:** ${tasa_usd:,.2f} Bs/USD | **Promedio:** ${tasa_prom:,.2f} Bs\n\n"
+            f"📊 **Reporte Ejecutivo y Análisis de Proveedores en Tiempo Real**\n\n"
+            f"• **Proveedores registrados:** {len(provs)}\n"
+            f"• **Total Facturado Acumulado:** **${ctx['total_usd']:,.2f} USD** (Bs. {ctx['total_bs']:,.2f})\n"
+            f"• **Tasa Oficial BCV:** ${tasa_usd:,.2f} Bs/USD | Promedio: ${tasa_prom:,.2f} Bs\n\n"
             f":::chart {chart_json}:::\n\n"
-            f"**Estatus y Desglose por Proveedor:**\n"
-            + "\n".join(lineas_det) +
-            f"\n\n*(Puedes exportar el directorio oficial completo con: [📥 Descargar Directorio de Proveedores (.xlsx)](/api/exportar/proveedores))*"
+            f"**Desglose por Proveedor:**\n" + "\n".join(lineas_p) +
+            f"\n\n[📥 Descargar Directorio de Proveedores (.xlsx)](/api/exportar/proveedores)"
         )
 
-    # 5. Reportes con gráficas de órdenes y gastos
-    if peticion_grafica and any(k in p_lower for k in ["orden", "ordenes", "órdenes", "compra", "compras", "gasto", "gastos", "factura"]):
-        ords = ctx.get("ordenes_recientes", [])
-        labels_o = [f"Ord #{o.get('nro')}" for o in ords[:6]]
-        data_o = [round(float(o.get('total_usd') or 0), 2) for o in ords[:6]]
-
-        chart_config = {
-            "type": "bar",
-            "title": "Monto de Órdenes Recientes (USD)",
-            "labels": labels_o if labels_o else ["Sin órdenes"],
-            "data": data_o if data_o else [0]
-        }
-        chart_json = json.dumps(chart_config)
+    # 9. CONSULTA DE ÓRDENES DE COMPRA / FACTURACIÓN / GASTOS
+    es_consulta_ordenes = any(k in p_lower for k in ["orden", "ordenes", "órdenes", "compra", "compras", "facturacion", "facturación", "gastos", "gasto"]) and not pide_precio
+    if es_consulta_ordenes:
+        lineas_o = []
+        for o in ords[:6]:
+            lineas_o.append(f"• **Orden #{o['nro']}** ({o['fecha']}): **${o['total_usd']:,.2f} USD** (Bs. {o['total_bs']:,.2f})\n  Proveedor: {o['proveedor']} | Proyecto: {o['proyecto']} | Solicitó: {o['solicitado_por'] or 'N/A'}")
 
         return (
-            f"📈 **Reporte Gráfico de Órdenes y Compras en Tiempo Real**\n\n"
-            f"• **Total Órdenes Emitidas:** {ctx['total_ordenes']}\n"
-            f"• **Volumen Facturado:** **${ctx['total_usd']:,.2f} USD** (Bs. {ctx['total_bs']:,.2f})\n"
-            f"• **Tasa Oficial BCV:** ${tasa_usd:,.2f} Bs/USD\n\n"
-            f":::chart {chart_json}:::\n\n"
-            f"Puedes descargar el reporte detallado en: [📥 Descargar Reporte de Órdenes (.xlsx)](/api/exportar/ordenes)."
+            f"📑 **Resumen de Órdenes de Compra y Facturación en Tiempo Real**\n\n"
+            f"• **Total órdenes emitidas:** {ctx['total_ordenes']}\n"
+            f"• **Monto total facturado:** **${ctx['total_usd']:,.2f} USD** (Bs. {ctx['total_bs']:,.2f} a tasa BCV)\n"
+            f"• **Tasa oficial BCV:** ${tasa_usd:,.2f} Bs/USD\n\n"
+            f"**Últimas órdenes registradas:**\n" + ("\n".join(lineas_o) if lineas_o else "Sin órdenes emitidas.") +
+            f"\n\nPuedes descargar el reporte detallado en: [📥 Descargar Reporte de Órdenes (.xlsx)](/api/exportar/ordenes)."
         )
 
-    # 6. Búsqueda contextual de ítems en el historial previo (últimos turnos) si la pregunta es un seguimiento
-    item_en_contexto = None
-    items_catalogo = ctx.get("items_catalogo", [])
-
-    # Primero verificar si el ítem está mencionado en la pregunta actual
-    for it in items_catalogo:
-        desc_limpia = it.get("descripcion", "").lower()
-        if desc_limpia and (desc_limpia in p_lower or any(pal in p_lower for pal in desc_limpia.split() if len(pal) > 3)):
-            item_en_contexto = it
-            break
-
-    # Si NO está en la pregunta actual, buscar en el historial de atrás hacia adelante
-    if not item_en_contexto and historial:
-        for turn in reversed(historial):
-            texto_turn = (turn.get("content") or "").lower()
-            for it in items_catalogo:
-                desc_limpia = it.get("descripcion", "").lower()
-                if desc_limpia and (desc_limpia in texto_turn or any(pal in texto_turn for pal in desc_limpia.split() if len(pal) > 3)):
-                    item_en_contexto = it
-                    break
-            if item_en_contexto:
+    # 10. AUDITORÍA Y TRAZABILIDAD DE USUARIOS (Prioridad sobre catálogo)
+    if any(k in p_lower for k in ["movimiento", "movimientos", "auditoria", "auditoría", "quien", "quién", "hizo", "loreidy", "pedro", "ramon", "ramón", "admin", "actividad", "trazabilidad", "sesion", "sesión", "historial"]):
+        movs_filtrados = movs
+        for nom in ["loreidy", "pedro", "ramon", "admin"]:
+            if nom in p_lower:
+                movs_filtrados = [m for m in movs if nom in (m.get("usuario_nombre") or "").lower()]
                 break
 
-    # 7. Pregunta específica sobre TASA PROMEDIO o conversión a promedio
-    if any(k in p_lower for k in ["promedio", "tasa promedio", "en promedio"]):
-        if item_en_contexto:
-            p_usd = float(item_en_contexto.get("precio_referencial_usd") or 0)
-            p_bs = round(p_usd * tasa_prom, 2)
-            return (
-                f"Calculando a **tasa promedio** oficial BCV (${tasa_prom:,.2f} Bs/USD — promedio oficial entre USD y EUR):\n\n"
-                f"• **{item_en_contexto.get('descripcion')}** ({item_en_contexto.get('unidad', 'UND')}): **${p_usd:,.2f} USD** equivale a aprox. **Bs. {p_bs:,.2f}**.\n\n"
-                f"*(Tasa USD Oficial: ${tasa_usd:,.2f} Bs | Tasa EUR Oficial: €{tasa_eur:,.2f} Bs | Tasa Promedio: ${tasa_prom:,.2f} Bs)*"
-            )
-        else:
-            return (
-                f"La **tasa promedio oficial BCV** vigente en el sistema es de **${tasa_prom:,.2f} Bs/USD**.\n\n"
-                f"• **Tasa USD Oficial:** ${tasa_usd:,.2f} Bs\n"
-                f"• **Tasa EUR Oficial:** €{tasa_eur:,.2f} Bs\n\n"
-                f"Puedes indicarme cualquier producto del catálogo (ej. *'cuánto cuesta la cama matrimonial a tasa promedio?'*) y te calcularé la conversión exacta."
-            )
-
-    # 8. Pregunta específica sobre TASA EUR o conversión a euros
-    if any(k in p_lower for k in ["euro", "euros", "a tasa euro", "en euros", "en eur"]):
-        if item_en_contexto:
-            p_usd = float(item_en_contexto.get("precio_referencial_usd") or 0)
-            p_bs = round(p_usd * tasa_eur, 2)
-            return (
-                f"Calculando con la **tasa EUR oficial BCV** (€{tasa_eur:,.2f} Bs):\n\n"
-                f"• **{item_en_contexto.get('descripcion')}** ({item_en_contexto.get('unidad', 'UND')}): **${p_usd:,.2f} USD** equivale a aprox. **Bs. {p_bs:,.2f}**."
-            )
-        else:
-            return f"La **tasa EUR oficial BCV** vigente cargada en el sistema es de **€{tasa_eur:,.2f} Bs** (USD: ${tasa_usd:,.2f} Bs)."
-
-    # 9. Pregunta específica sobre TASA USD / BOLÍVARES
-    if any(k in p_lower for k in ["en dolares", "en dólares", "a tasa bcv", "en bolivares", "en bolívares", "en bs"]) and item_en_contexto:
-        p_usd = float(item_en_contexto.get("precio_referencial_usd") or 0)
-        p_bs = round(p_usd * tasa_usd, 2)
-        return (
-            f"Calculando con la **tasa USD oficial BCV** (${tasa_usd:,.2f} Bs/USD):\n\n"
-            f"• **{item_en_contexto.get('descripcion')}** ({item_en_contexto.get('unidad', 'UND')}): **${p_usd:,.2f} USD** equivale a aprox. **Bs. {p_bs:,.2f}**."
-        )
-
-    # 10. Solicitud de reportes o descargas Excel:
-    if any(k in p_lower for k in ["excel", "descarga", "descargar", "exportar", "plantilla"]):
-        return (
-            f"Hola {usuario}. Con gusto puedo facilitarte los enlaces oficiales para generar y descargar los reportes del sistema en formato Excel (.xlsx):\n\n"
-            f"• [📥 Descargar Reporte de Órdenes (.xlsx)](/api/exportar/ordenes)\n"
-            f"• [📥 Descargar Directorio de Proveedores (.xlsx)](/api/exportar/proveedores)\n"
-            f"• [📥 Descargar Reporte de Auditoría (.xlsx)](/api/exportar/auditoria)\n"
-            f"• [📥 Descargar Plantilla de Proveedores (.xlsx)](/api/plantilla/proveedores)\n\n"
-            f"Cada archivo contiene la información consolidada con formato contable."
-        )
-
-    # 7. Preguntas de precios, costos, catálogo:
-    if any(k in p_lower for k in ["precio", "costo", "catálogo", "catalogo", "cuánto", "cuanto", "vale", "cotiz"]) or item_en_contexto:
-        coincidencias = []
-        if item_en_contexto:
-            coincidencias = [item_en_contexto]
-        else:
-            for it in items_catalogo:
-                desc = it.get("descripcion", "")
-                if any(w in desc.lower() for w in p_lower.split() if len(w) > 3):
-                    coincidencias.append(it)
-
-        if not coincidencias and items_catalogo:
-            coincidencias = items_catalogo[:6]
-
-        if coincidencias:
-            lineas = []
-            for it in coincidencias[:6]:
-                p_usd = float(it.get("precio_referencial_usd") or 0)
-                p_bs = round(p_usd * tasa_usd, 2)
-                p_prom = round(p_usd * tasa_prom, 2)
-                lineas.append(f"• **{it.get('descripcion')}** ({it.get('unidad', 'UND')}): **${p_usd:,.2f} USD** (aprox. **Bs. {p_bs:,.2f}** a tasa oficial BCV de ${tasa_usd:,.2f} Bs/USD | Bs. {p_prom:,.2f} a tasa promedio)")
-            return (
-                f"Consultando el catálogo oficial de costos y precios en tiempo real (Tasa BCV: ${tasa_usd:,.2f} Bs/USD | Promedio: ${tasa_prom:,.2f} Bs):\n\n"
-                + "\n".join(lineas) +
-                f"\n\nPuedes solicitarme calcularlo a tasa promedio, tasa euro, o modificar cualquiera de estos precios cuando lo desees."
-            )
-
-    # 8. Preguntas sobre órdenes o compras:
-    if any(k in p_lower for k in ["orden", "compra", "facturad", "emitid", "total", "gasto"]):
-        ords = ctx.get("ordenes_recientes", [])
-        lineas_ord = []
-        for o in ords[:5]:
-            lineas_ord.append(f"• **Orden #{o['nro']}** ({o['fecha']}): {o['proveedor']} — **${o['total_usd']:,.2f} USD** (Bs. {o['total_bs']:,.2f})")
-        return (
-            f"Resumen financiero y de órdenes emitidas en el sistema:\n\n"
-            f"• **Total de órdenes emitidas:** {ctx['total_ordenes']}\n"
-            f"• **Monto total facturado:** **${ctx['total_usd']:,.2f} USD** (Bs. {ctx['total_bs']:,.2f})\n"
-            f"• **Tasa oficial BCV vigente:** ${tasa_usd:,.2f} Bs/USD\n\n"
-            f"**Últimas órdenes registradas:**\n" + "\n".join(lineas_ord) +
-            f"\n\nSi deseas el detalle completo, puedes [📥 Descargar el Reporte de Órdenes en Excel](/api/exportar/ordenes)."
-        )
-
-    # 9. Preguntas sobre proveedores:
-    if any(k in p_lower for k in ["proveedor", "proveedores", "rif", "banco", "cuenta"]):
-        provs = ctx.get("proveedores_detalle", [])
-        lineas_p = []
-        for p in provs[:6]:
-            lineas_p.append(f"• **{p.get('razon_social')}** — RIF: {p.get('rif', 'N/A')} | Banco: {p.get('banco', 'N/A')} | Cuenta: {p.get('num_cuenta', 'N/A')}")
-        return (
-            f"Directorio de proveedores registrados ({ctx['total_proveedores']} en total):\n\n"
-            + "\n".join(lineas_p) +
-            f"\n\nPuedes ver o exportar el directorio completo con: [📥 Descargar Directorio de Proveedores (.xlsx)](/api/exportar/proveedores)."
-        )
-
-    # 10. Preguntas sobre auditoría, movimientos o usuarios:
-    if any(k in p_lower for k in ["movimiento", "auditoría", "auditoria", "loreidy", "pedro", "ramon", "quien", "quién", "hizo"]):
-        movs = ctx.get("movimientos_especificos") or ctx.get("movimientos_recientes", [])
         lineas_m = []
-        for m in movs[:6]:
-            lineas_m.append(f"• `[{m.get('created_at', '')[:19]}]` **{m.get('usuario_nombre')}**: {m.get('descripcion')}")
+        for m in (movs_filtrados or movs)[:6]:
+            f_ve = _formatear_fecha_ve(m.get("created_at"))
+            lineas_m.append(f"• `[{f_ve}]` **{m.get('usuario_nombre')}**: {m.get('descripcion')}")
+
         return (
-            f"Registro histórico y trazabilidad de actividades en el sistema:\n\n"
-            + ("\n".join(lineas_m) if lineas_m else "No se encontraron movimientos registrados recientemente.") +
+            f"🛡️ **Registro Histórico y Auditoría de Actividad:**\n\n"
+            + ("\n".join(lineas_m) if lineas_m else "No se encontraron movimientos recientes.") +
             f"\n\nPuedes generar el historial completo con: [📥 Descargar Reporte de Auditoría (.xlsx)](/api/exportar/auditoria)."
         )
 
-    # 11. Respuesta ejecutiva general
+    # 11. DIRECTORIO GENERAL DE PROVEEDORES
+    if any(k in p_lower for k in ["proveedor", "proveedores", "directorio", "suplidor", "suplidores", "cuentas bancarias", "banco"]):
+        lineas_p = []
+        for p in provs:
+            lineas_p.append(f"• **{p.get('razon_social')}** — RIF: {p.get('rif') or 'N/A'} | Banco: {p.get('banco') or 'N/A'} | Cuenta: `{p.get('num_cuenta') or 'N/A'}`")
+        return (
+            f"🏛️ **Directorio Oficial de Proveedores ({len(provs)} registrados):**\n\n"
+            + ("\n".join(lineas_p) if lineas_p else "No hay proveedores registrados.") +
+            f"\n\nPuedes consultar un proveedor específico por su nombre o descargar el reporte en: [📥 Descargar Directorio de Proveedores (.xlsx)](/api/exportar/proveedores)."
+        )
+
+    # 12. PRECIOS Y COSTOS DE ÍTEMS DEL CATÁLOGO
+    if pide_precio or item_mencionado:
+        coincidencias = [item_mencionado] if item_mencionado else items_cat[:6]
+        lineas_it = []
+        for it in coincidencias:
+            p_usd = float(it.get("precio_referencial_usd") or 0)
+            p_bs = round(p_usd * tasa_usd, 2)
+            p_prom = round(p_usd * tasa_prom, 2)
+            lineas_it.append(f"• **{it.get('descripcion')}** ({it.get('unidad', 'UND')}): **${p_usd:,.2f} USD** (Bs. {p_bs:,.2f} a tasa BCV | Bs. {p_prom:,.2f} a tasa promedio)")
+
+        return (
+            f"🏷️ **Catálogo Oficial de Costos y Precios (Tasa BCV: ${tasa_usd:,.2f} Bs/USD | Promedio: ${tasa_prom:,.2f} Bs):**\n\n"
+            + ("\n".join(lineas_it) if lineas_it else "No hay ítems registrados en el catálogo.") +
+            f"\n\nPuedes pedirme convertir cualquiera a tasa promedio, tasa euro, o solicitarme actualizar sus precios."
+        )
+
+    # 13. DESCARGA DE REPORTES EXCEL
+    if any(k in p_lower for k in ["excel", "descarga", "descargar", "exportar", "plantilla"]):
+        return (
+            f"Hola {usuario}. Aquí tienes los enlaces oficiales para exportar la información del sistema en Excel (.xlsx):\n\n"
+            f"• [📥 Descargar Reporte de Órdenes (.xlsx)](/api/exportar/ordenes)\n"
+            f"• [📥 Descargar Directorio de Proveedores (.xlsx)](/api/exportar/proveedores)\n"
+            f"• [📥 Descargar Reporte de Auditoría (.xlsx)](/api/exportar/auditoria)\n"
+            f"• [📥 Descargar Plantilla de Proveedores (.xlsx)](/api/plantilla/proveedores)"
+        )
+
+    # 14. RESPUESTA GENERAL
     return (
         f"Hola {usuario}. Soy Astrid, el asistente inteligente y cerebro analítico del Facturador SIST-LQ.\n\n"
         f"Actualmente contamos con:\n"
         f"• **{ctx['total_ordenes']} órdenes de compra emitidas** (Total: ${ctx['total_usd']:,.2f} USD / Bs. {ctx['total_bs']:,.2f})\n"
         f"• **{ctx['total_proveedores']} proveedores registrados** en el directorio\n"
         f"• **Tasa oficial BCV:** ${tasa_usd:,.2f} Bs/USD (EUR: €{tasa_eur:,.2f} Bs | Promedio: ${tasa_prom:,.2f} Bs)\n\n"
-        f"Tengo acceso total para orientarte sobre precios, costos, auditoría, o generar reportes en Excel. ¿En qué puedo orientarte hoy?"
+        f"Tengo acceso total para orientarte sobre precios, órdenes de compra, proveedores, auditoría, o generar reportes en Excel. ¿En qué puedo orientarte hoy?"
     )
 
 
@@ -2797,7 +2841,7 @@ def guardar_en_memoria_astrid(pregunta, respuesta, usuario):
             entry["respuesta"] = respuesta
             entry["veces_consultada"] = entry.get("veces_consultada", 1) + 1
             entry["ultimo_usuario"] = usuario
-            entry["updated_at"] = datetime.datetime.now().isoformat()
+            entry["updated_at"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
             try:
                 with open(memoria_file, "w", encoding="utf-8") as f:
                     json.dump(memoria, f, ensure_ascii=False, indent=2)
@@ -2806,7 +2850,7 @@ def guardar_en_memoria_astrid(pregunta, respuesta, usuario):
             return
 
     memoria.append({
-        "timestamp": datetime.datetime.now().isoformat(),
+        "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         "usuario": usuario,
         "pregunta": pregunta,
         "pregunta_normalizada": norm,
@@ -2822,6 +2866,10 @@ def guardar_en_memoria_astrid(pregunta, respuesta, usuario):
 def buscar_en_memoria_astrid(pregunta):
     norm = _normalizar_pregunta(pregunta)
     if not norm or len(norm) < 4:
+        return None
+    # Evitar retornar respuestas cacheadas para consultas dinámicas del sistema
+    keywords_dinamicas = ["precio", "costo", "tasa", "bcv", "dolar", "euro", "orden", "compra", "proveedor", "reporte", "grafica", "movimiento", "auditoria"]
+    if any(k in norm for k in keywords_dinamicas):
         return None
     memoria = cargar_memoria_astrid()
     for entry in memoria:

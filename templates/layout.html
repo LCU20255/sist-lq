@@ -412,7 +412,11 @@
         function formatearTiempoRelativo(fechaStr) {
             if (!fechaStr) return 'Reciente';
             try {
-                const f = new Date(fechaStr);
+                let s = String(fechaStr).trim().replace(' ', 'T');
+                if (!s.includes('Z') && !s.includes('+') && !s.match(/-\d{2}:\d{2}$/)) {
+                    s += 'Z';
+                }
+                const f = new Date(s);
                 if (isNaN(f.getTime())) return 'Reciente';
                 const diffMs = Date.now() - f.getTime();
                 if (diffMs < 0 || diffMs < 60000) return 'Hace un momento';
