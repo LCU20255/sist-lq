@@ -1209,72 +1209,101 @@ def telegram_recuperar():
     except Exception as e:
         return jsonify({"success": False, "error": f"Error conectando con Telegram: {str(e)}"}), 500
 
-_piper_voice_instance = None
-
-def _obtener_piper_voice():
-    global _piper_voice_instance
-    if _piper_voice_instance is not None:
-        return _piper_voice_instance
+def _generar_edge_tts(texto, voice="es-MX-DaliaNeural"):
+    """
+    Genera audio MP3 de alta fidelidad con Microsoft Edge Neural TTS API en la nube.
+    100% GRATUITO, SIN DESCARGAS LOCALES DE MODELOS, SIN LÍMITES Y SIN API KEYS.
+    Voz nativa latina profesional: es-MX-DaliaNeural
+    """
+    import asyncio
+    import concurrent.futures
     try:
-        import piper
-        import urllib.request
-        model_name = os.getenv("PIPER_VOICE", "es_AR-daniela-high")
-        base_dir = os.path.dirname(os.path.abspath(__file__))
-        models_dir = os.path.join(base_dir, "piper_models")
-        os.makedirs(models_dir, exist_ok=True)
-        
-        model_path = os.path.join(models_dir, f"{model_name}.onnx")
-        config_path = os.path.join(models_dir, f"{model_name}.onnx.json")
+        import edge_tts
+        async def _run():
+            communicate = edge_tts.Communicate(text=texto, voice=voice)
+            chunks = []
+            async for chunk in communicate.stream():
+                if chunk.get("type") == "audio":
+                    chunks.append(chunk["data"])
+            return b"".join(chunks)
 
-        # Auto-descarga automática si no existe en el servidor (Render / Cloud)
-        if not os.path.exists(model_path) or not os.path.exists(config_path):
-            if current_app:
-                current_app.logger.info(f"Descargando modelo Piper {model_name} desde Hugging Face...")
-            
-            hf_base = f"https://huggingface.co/rhasspy/piper-voices/resolve/main/es/es_AR/daniela/high/"
-            if not os.path.exists(config_path):
-                urllib.request.urlretrieve(f"{hf_base}{model_name}.onnx.json", config_path)
-            if not os.path.exists(model_path):
-                urllib.request.urlretrieve(f"{hf_base}{model_name}.onnx", model_path)
-
-        if os.path.exists(model_path):
-            _piper_voice_instance = piper.PiperVoice.load(model_path, config_path=config_path if os.path.exists(config_path) else None)
-            return _piper_voice_instance
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+            return pool.submit(asyncio.run, _run()).result(timeout=12)
     except Exception as e:
         if current_app:
-            current_app.logger.error(f"Error cargando o descargando PiperVoice: {e}")
-    return None
+            current_app.logger.warning(f"Error generando Edge TTS: {e}")
+        return b""
+
+def _generar_hf_tts(texto):
+    """
+    Genera audio WAV via Hugging Face Inference API (facebook/mms-tts-spa).
+    Motor Open Source gratuito para español. Requiere HF_TOKEN en variables de entorno.
+    Retorna bytes de audio WAV o b"" si falla.
+    """
+    hf_token = os.getenv("HF_TOKEN", "")
+    hf_model = os.getenv("HF_TTS_MODEL", "facebook/mms-tts-spa")
+    if not hf_token:
+        return b""
+    try:
+        url = f"https://api-inference.huggingface.co/models/{hf_model}"
+        headers = {"Authorization": f"Bearer {hf_token}"}
+        r = requests.post(url, headers=headers, json={"inputs": texto}, timeout=18)
+        ct = r.headers.get("content-type", "")
+        if r.status_code == 200 and ("audio" in ct or len(r.content) > 1000):
+            if current_app:
+                current_app.logger.info(f"HF TTS OK: {len(r.content)} bytes ({hf_model})")
+            return r.content
+        else:
+            if current_app:
+                current_app.logger.warning(f"HF TTS fallo {r.status_code}: {r.text[:120]}")
+            return b""
+    except Exception as e:
+        if current_app:
+            current_app.logger.warning(f"HF TTS excepción: {e}")
+        return b""
 
 def generar_audio_astrid(texto):
     """
-    Genera voz para Astrid utilizando exclusivamente Piper TTS (Open Source local ONNX).
-    100% OFFLINE, ULTRA LIGERO, SIN APIS EXTERNAS, VOZ LATINA FEMENINA (daniela-high).
+    Motor TTS de Astrid con cascade inteligente:
+      1. Hugging Face Inference API (facebook/mms-tts-spa) — Open Source, español nativo
+      2. Edge TTS (es-MX-DaliaNeural) — Fallback neural gratuito e ilimitado
+    
+    0 descargas locales. 0 MB en disco. Ultra rápido. Sin cortes en producción.
     Retorna: (audio_b64, audio_mime)
     """
     import base64
-    import wave
-    import io
-    
+
     texto_limpio = re.sub(r'[*#_`]', '', texto)
     texto_limpio = re.sub(r'[\U00010000-\U0010ffff]', '', texto_limpio).strip()
     if not texto_limpio:
         return "", ""
 
+    texto_corto = texto_limpio[:1500]  # MMS-TTS tiene mejor calidad con textos cortos
+
+    # ── 1. Intentar Hugging Face TTS (español Open Source) ─────────────────────
     try:
-        voice = _obtener_piper_voice()
-        if voice:
-            wav_io = io.BytesIO()
-            with wave.open(wav_io, 'wb') as wav_file:
-                voice.synthesize_wav(texto_limpio[:1500], wav_file)
-            
-            wav_data = wav_io.getvalue()
-            if wav_data:
-                return base64.b64encode(wav_data).decode("utf-8"), "audio/wav"
-    except Exception as piper_err:
+        hf_audio = _generar_hf_tts(texto_corto)
+        if hf_audio:
+            mime = "audio/wav"
+            return base64.b64encode(hf_audio).decode("utf-8"), mime
+    except Exception as e:
         if current_app:
-            current_app.logger.error(f"Error generando Piper TTS: {piper_err}")
+            current_app.logger.warning(f"HF TTS no disponible, usando Edge TTS: {e}")
+
+    # ── 2. Fallback: Edge TTS Neural (es-MX-DaliaNeural) ──────────────────────
+    try:
+        voz = os.getenv("TTS_VOICE", "es-MX-DaliaNeural")
+        audio_mp3 = _generar_edge_tts(texto_corto, voice=voz)
+        if audio_mp3:
+            if current_app:
+                current_app.logger.info("Usando Edge TTS (fallback) — OK")
+            return base64.b64encode(audio_mp3).decode("utf-8"), "audio/mp3"
+    except Exception as err:
+        if current_app:
+            current_app.logger.error(f"Error en Edge TTS fallback: {err}")
 
     return "", ""
+
 
 @bp.route("/api/astrid/bienvenida", methods=["GET", "POST"])
 def astrid_bienvenida():

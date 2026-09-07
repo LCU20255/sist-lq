@@ -29,5 +29,4 @@ gunicorn>=21.2.0
 # Waitress para servidores Windows / On-Premise
 waitress>=3.0.0
 
-piper-tts>=1.8.0
-pathvalidate>=3.3.1
+edge-tts>=7.0.0

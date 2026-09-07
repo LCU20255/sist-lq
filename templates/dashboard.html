@@ -53,7 +53,7 @@
             <div class="flex items-center justify-between">
                 <div>
                     <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Total Facturado USD</p>
-                    <h3 class="text-2xl font-black text-slate-900 mt-1">
+                    <h3 class="text-2xl font-black text-slate-900 mt-1" id="kpi-total-usd">
                         ${{ format_decimal(ordenes | sum(attribute='total_usd')) }}
                     </h3>
                 </div>
@@ -71,7 +71,7 @@
             <div class="flex items-center justify-between">
                 <div>
                     <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Total Bolívares (Bs)</p>
-                    <h3 class="text-xl font-black text-slate-900 mt-1 truncate max-w-[160px]">
+                    <h3 class="text-xl font-black text-slate-900 mt-1 truncate max-w-[160px]" id="kpi-total-bs">
                         Bs. {{ format_decimal(ordenes | sum(attribute='total_bs')) }}
                     </h3>
                 </div>
@@ -89,7 +89,7 @@
             <div class="flex items-center justify-between">
                 <div>
                     <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Órdenes Emitidas</p>
-                    <h3 class="text-2xl font-black text-slate-900 mt-1">
+                    <h3 class="text-2xl font-black text-slate-900 mt-1" id="kpi-count-ordenes">
                         {{ ordenes|length }}
                     </h3>
                 </div>
@@ -142,7 +142,7 @@
                         class="inline-flex items-center px-3.5 py-1.5 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-xs font-bold shadow-sm transition-all">
                     <i class="bi bi-plus-circle mr-1.5"></i>Nueva Orden
                 </button>
-                <span class="text-xs bg-slate-100 text-slate-700 font-bold px-3 py-1.5 rounded-xl border border-slate-200">
+                <span id="badge-count-ordenes" class="text-xs bg-slate-100 text-slate-700 font-bold px-3 py-1.5 rounded-xl border border-slate-200">
                     {{ ordenes|length }} Órdenes
                 </span>
             </div>
@@ -163,7 +163,7 @@
                         <th class="px-6 py-4 text-center">Acciones</th>
                     </tr>
                 </thead>
-                <tbody class="divide-y divide-slate-100">
+                <tbody id="tbody-dashboard-ordenes" class="divide-y divide-slate-100">
                     {% if ordenes %}
                         {% for orden in ordenes %}
                             <tr class="hover:bg-slate-50/80 transition-colors">
