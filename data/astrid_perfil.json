@@ -1,0 +1,71 @@
+{
+  "usuarios": {
+    "Loreidy Quiñonez": {
+      "nombre": "Loreidy Quiñonez",
+      "email": "loreidy@nexa.com",
+      "rol": "admin",
+      "estilo_comunicacion": "Operativo, directo y ágil",
+      "vocabulario_frecuente": {
+        "astrid": 4,
+        "drill": 4,
+        "epa": 2,
+        "chamo": 2,
+        "qué": 2,
+        "tal": 2,
+        "necesitamos": 2,
+        "revisar": 2,
+        "urgencia": 2,
+        "cotización": 2,
+        "100": 2,
+        "algodón": 2,
+        "precio": 2,
+        "tornillo": 2,
+        "cómo": 2,
+        "sale": 2,
+        "bolívares": 2,
+        "tasa": 2,
+        "bcv": 2,
+        "cuánto": 2,
+        "cuesta": 2
+      },
+      "temas_frecuentes": {
+        "catálogo_y_precios": 4,
+        "tasas_oficiales_bcv": 2
+      },
+      "total_interacciones": 6,
+      "primera_interaccion": "2026-09-08T13:57:40.095211+00:00",
+      "ultima_interaccion": "2026-09-08T13:58:04.251730+00:00"
+    },
+    "Administrador Principal": {
+      "nombre": "Administrador Principal",
+      "email": "admin@nexa.com",
+      "rol": "admin",
+      "estilo_comunicacion": "Coloquial venezolano y cercano",
+      "vocabulario_frecuente": {
+        "astrid": 2,
+        "consulta": 1,
+        "toda": 1,
+        "data": 1,
+        "sistema": 1,
+        "oye": 1,
+        "chamo": 1,
+        "necesitamos": 1,
+        "revisar": 1,
+        "precio": 1,
+        "drill": 1,
+        "nueva": 1,
+        "orden": 1,
+        "minutos": 1
+      },
+      "temas_frecuentes": {
+        "catálogo_y_precios": 1,
+        "órdenes_de_compra": 1
+      },
+      "total_interacciones": 6,
+      "primera_interaccion": "2026-09-08T14:00:09.216417+00:00",
+      "ultima_interaccion": "2026-09-08T14:01:42.961729+00:00"
+    }
+  },
+  "version": "1.0",
+  "updated_at": "2026-09-08T14:01:42.961982+00:00"
+}

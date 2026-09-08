@@ -289,6 +289,309 @@
 </div> <!-- End of section-dashboard -->
 
 <!-- =========================================================================
+     SECCIÓN SPA NATIVA: CENTRO DE ANALÍTICA Y REPORTES VISUALES
+     ========================================================================= -->
+<div id="section-reportes" class="app-section hidden w-full pb-16 animate-fade-in">
+    <!-- Header de la Sección -->
+    <div class="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white border border-slate-200/80 rounded-3xl p-6 shadow-sm">
+        <div class="flex items-center space-x-4">
+            <div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-500 text-white flex items-center justify-center text-2xl shadow-md">
+                <i class="bi bi-graph-up-arrow"></i>
+            </div>
+            <div>
+                <h2 class="text-xl font-black text-slate-900 tracking-tight flex items-center">
+                    Centro de Analítica & Inteligencia de Negocios
+                    <span class="ml-3 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-50 text-emerald-800 border border-emerald-200">
+                        BI & Reportes
+                    </span>
+                </h2>
+                <p class="text-xs text-slate-500 mt-0.5">Estadísticas de compras en tiempo real, consolidación bimonetaria USD/Bs y exportaciones ejecutivas con gráficos</p>
+            </div>
+        </div>
+        <div class="flex flex-wrap items-center gap-2.5">
+            <button type="button" onclick="cargarAnaliticaReportes()" class="inline-flex items-center px-3.5 py-2 text-xs font-bold rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition shadow-sm">
+                <i class="bi bi-arrow-clockwise mr-1.5 text-sm"></i>
+                Refrescar
+            </button>
+            <a id="btn_descargar_excel_analitico" href="/api/exportar/reporte-analitico" class="inline-flex items-center px-4 py-2 text-xs font-bold rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white transition shadow-sm">
+                <i class="bi bi-file-earmark-excel-fill mr-2 text-sm text-emerald-100"></i>
+                Descargar Excel con Gráficas Nativas
+            </a>
+        </div>
+    </div>
+
+    <!-- Barra de Filtros Dinámicos e Inteligencia de Negocios -->
+    <div class="mb-6 bg-white/95 backdrop-blur border border-slate-200/80 rounded-3xl p-5 shadow-sm">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pb-3 border-b border-slate-100">
+            <div class="flex items-center space-x-2">
+                <span class="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-sm font-bold shadow-xs">
+                    <i class="bi bi-funnel-fill"></i>
+                </span>
+                <div>
+                    <h3 class="text-xs font-black uppercase tracking-wider text-slate-800">Filtros Dinámicos de Analítica</h3>
+                    <p class="text-[11px] text-slate-400">Segmenta los KPIs, las 4 gráficas y la exportación a Excel en tiempo real</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-2">
+                <span id="badge_filtro_analitica_estado" class="text-[10px] font-bold px-2.5 py-1 bg-slate-100 text-slate-600 rounded-full border border-slate-200">
+                    Mostrando: Histórico Completo
+                </span>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 items-end">
+            <!-- 1. Período Preset -->
+            <div>
+                <label class="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+                    <i class="bi bi-calendar3 mr-1 text-emerald-600"></i>Período
+                </label>
+                <select id="filtro_analitica_periodo" onchange="onCambioPeriodoAnalitica()" class="w-full text-xs font-semibold text-slate-700 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-2 focus:ring-2 focus:ring-emerald-500 focus:outline-none transition">
+                    <option value="">Todo el Histórico</option>
+                    <option value="hoy">Hoy</option>
+                    <option value="semana">Esta Semana</option>
+                    <option value="mes">Este Mes</option>
+                    <option value="ultimos_30">Últimos 30 días</option>
+                    <option value="ano">Año en Curso</option>
+                </select>
+            </div>
+
+            <!-- 2. Fecha Desde -->
+            <div>
+                <label class="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+                    <i class="bi bi-calendar-event mr-1 text-emerald-600"></i>Desde
+                </label>
+                <input type="date" id="filtro_analitica_desde" onchange="onCambioFechaManualAnalitica()" class="w-full text-xs font-semibold text-slate-700 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 focus:ring-2 focus:ring-emerald-500 focus:outline-none transition">
+            </div>
+
+            <!-- 3. Fecha Hasta -->
+            <div>
+                <label class="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+                    <i class="bi bi-calendar-check mr-1 text-emerald-600"></i>Hasta
+                </label>
+                <input type="date" id="filtro_analitica_hasta" onchange="onCambioFechaManualAnalitica()" class="w-full text-xs font-semibold text-slate-700 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 focus:ring-2 focus:ring-emerald-500 focus:outline-none transition">
+            </div>
+
+            <!-- 4. Comercio / Proveedor -->
+            <div>
+                <label class="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+                    <i class="bi bi-building mr-1 text-emerald-600"></i>Comercio / Proveedor
+                </label>
+                <select id="filtro_analitica_proveedor" class="w-full text-xs font-semibold text-slate-700 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-2 focus:ring-2 focus:ring-emerald-500 focus:outline-none transition">
+                    <option value="">Todos los Comercios</option>
+                </select>
+            </div>
+
+            <!-- 5. Proyecto -->
+            <div>
+                <label class="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+                    <i class="bi bi-briefcase mr-1 text-emerald-600"></i>Proyecto / Obra
+                </label>
+                <select id="filtro_analitica_proyecto" class="w-full text-xs font-semibold text-slate-700 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-2 focus:ring-2 focus:ring-emerald-500 focus:outline-none transition">
+                    <option value="">Todos los Proyectos</option>
+                </select>
+            </div>
+
+            <!-- 6. Botones de Acción -->
+            <div class="flex items-center gap-1.5">
+                <button type="button" onclick="aplicarFiltrosAnalitica()" class="flex-1 inline-flex items-center justify-center px-3 py-2 text-xs font-bold rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white transition shadow-sm" title="Aplicar filtros activos">
+                    <i class="bi bi-search mr-1"></i> Filtrar
+                </button>
+                <button type="button" onclick="limpiarFiltrosAnalitica()" class="inline-flex items-center justify-center px-2.5 py-2 text-xs font-bold rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 transition" title="Restablecer filtros">
+                    <i class="bi bi-arrow-counterclockwise"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tarjetas KPI Principales -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+        <!-- KPI 1: Facturación USD -->
+        <div class="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-sm relative overflow-hidden flex flex-col justify-between">
+            <div class="flex items-center justify-between text-slate-400 mb-2">
+                <span class="text-[11px] font-bold uppercase tracking-wider text-slate-500">Total Facturado</span>
+                <span class="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-sm font-bold shadow-xs">
+                    <i class="bi bi-currency-dollar"></i>
+                </span>
+            </div>
+            <div>
+                <h3 id="kpi_analitica_usd" class="text-2xl font-black text-slate-900 tracking-tight">$0.00</h3>
+                <p id="kpi_analitica_bs" class="text-xs font-bold text-slate-500 mt-1">Bs. 0,00</p>
+            </div>
+            <div class="mt-2 text-[10px] text-emerald-700 font-semibold bg-emerald-50/60 rounded px-2 py-0.5 inline-block w-fit">
+                Bimonetario Consolidado
+            </div>
+        </div>
+
+        <!-- KPI 2: Ticket Promedio -->
+        <div class="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-sm relative overflow-hidden flex flex-col justify-between">
+            <div class="flex items-center justify-between text-slate-400 mb-2">
+                <span class="text-[11px] font-bold uppercase tracking-wider text-slate-500">Ticket Promedio</span>
+                <span class="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center text-sm font-bold shadow-xs">
+                    <i class="bi bi-receipt"></i>
+                </span>
+            </div>
+            <div>
+                <h3 id="kpi_analitica_ticket" class="text-2xl font-black text-slate-900 tracking-tight">$0.00</h3>
+                <p class="text-xs font-medium text-slate-500 mt-1">Por adquisición emitida</p>
+            </div>
+            <div class="mt-2 text-[10px] text-blue-700 font-semibold bg-blue-50/60 rounded px-2 py-0.5 inline-block w-fit">
+                Monto Medio
+            </div>
+        </div>
+
+        <!-- KPI 3: Total Órdenes -->
+        <div class="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-sm relative overflow-hidden flex flex-col justify-between">
+            <div class="flex items-center justify-between text-slate-400 mb-2">
+                <span class="text-[11px] font-bold uppercase tracking-wider text-slate-500">Órdenes Emitidas</span>
+                <span class="w-8 h-8 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center text-sm font-bold shadow-xs">
+                    <i class="bi bi-file-earmark-check"></i>
+                </span>
+            </div>
+            <div>
+                <h3 id="kpi_analitica_ordenes" class="text-2xl font-black text-slate-900 tracking-tight">0</h3>
+                <p class="text-xs font-medium text-slate-500 mt-1">Registros inmutables</p>
+            </div>
+            <div class="mt-2 text-[10px] text-purple-700 font-semibold bg-purple-50/60 rounded px-2 py-0.5 inline-block w-fit">
+                Base Histórica
+            </div>
+        </div>
+
+        <!-- KPI 4: Proveedor Líder -->
+        <div class="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-sm relative overflow-hidden flex flex-col justify-between">
+            <div class="flex items-center justify-between text-slate-400 mb-2">
+                <span class="text-[11px] font-bold uppercase tracking-wider text-slate-500">Proveedor Líder</span>
+                <span class="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center text-sm font-bold shadow-xs">
+                    <i class="bi bi-building"></i>
+                </span>
+            </div>
+            <div>
+                <h3 id="kpi_analitica_top_prov" class="text-sm font-black text-slate-900 truncate" title="Proveedor Líder">N/A</h3>
+                <p id="kpi_analitica_top_prov_sub" class="text-xs font-bold text-amber-700 mt-1">$0.00 (0%)</p>
+            </div>
+            <div class="mt-2 text-[10px] text-amber-800 font-semibold bg-amber-50/60 rounded px-2 py-0.5 inline-block w-fit">
+                Mayor Adjudicación
+            </div>
+        </div>
+
+        <!-- KPI 5: Proyecto Líder -->
+        <div class="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-sm relative overflow-hidden flex flex-col justify-between">
+            <div class="flex items-center justify-between text-slate-400 mb-2">
+                <span class="text-[11px] font-bold uppercase tracking-wider text-slate-500">Proyecto Principal</span>
+                <span class="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center text-sm font-bold shadow-xs">
+                    <i class="bi bi-briefcase"></i>
+                </span>
+            </div>
+            <div>
+                <h3 id="kpi_analitica_top_proy" class="text-sm font-black text-slate-900 truncate" title="Proyecto Principal">N/A</h3>
+                <p id="kpi_analitica_top_proy_sub" class="text-xs font-bold text-indigo-700 mt-1">$0.00 (0%)</p>
+            </div>
+            <div class="mt-2 text-[10px] text-indigo-800 font-semibold bg-indigo-50/60 rounded px-2 py-0.5 inline-block w-fit">
+                Mayor Consumo
+            </div>
+        </div>
+    </div>
+
+    <!-- Grid de Gráficas Estadísticas -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Gráfica 1: Evolución Temporal Bimonetaria -->
+        <div class="bg-white border border-slate-200/80 rounded-3xl p-6 shadow-sm flex flex-col justify-between">
+            <div class="flex items-center justify-between mb-4">
+                <div>
+                    <h3 class="font-bold text-slate-800 text-sm flex items-center">
+                        <i class="bi bi-graph-up text-emerald-600 mr-2 text-base"></i>
+                        Evolución Temporal de Compras (Bimonetaria)
+                    </h3>
+                    <p class="text-xs text-slate-400 mt-0.5">Historial comparativo de facturación consolidada en USD y Bs</p>
+                </div>
+                <div class="flex items-center space-x-1.5">
+                    <button type="button" onclick="copiarGraficaAlPortapapeles('chartEvolucion')" class="px-2.5 py-1 text-xs font-bold bg-slate-100 hover:bg-emerald-50 hover:text-emerald-700 text-slate-600 rounded-lg transition" title="Copiar gráfica al portapapeles como imagen">
+                        <i class="bi bi-clipboard-check mr-1"></i> Copiar
+                    </button>
+                    <button type="button" onclick="descargarGraficaPNG('chartEvolucion', 'Evolucion_Compras_SIST_LQ')" class="p-1.5 text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition" title="Descargar PNG">
+                        <i class="bi bi-download"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="relative w-full h-72">
+                <canvas id="chartEvolucion"></canvas>
+            </div>
+        </div>
+
+        <!-- Gráfica 2: Distribución por Proveedor -->
+        <div class="bg-white border border-slate-200/80 rounded-3xl p-6 shadow-sm flex flex-col justify-between">
+            <div class="flex items-center justify-between mb-4">
+                <div>
+                    <h3 class="font-bold text-slate-800 text-sm flex items-center">
+                        <i class="bi bi-pie-chart text-indigo-600 mr-2 text-base"></i>
+                        Distribución del Gasto por Proveedor (USD)
+                    </h3>
+                    <p class="text-xs text-slate-400 mt-0.5">Participación porcentual y volumen adjudicado por beneficiario</p>
+                </div>
+                <div class="flex items-center space-x-1.5">
+                    <button type="button" onclick="copiarGraficaAlPortapapeles('chartProveedores')" class="px-2.5 py-1 text-xs font-bold bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 text-slate-600 rounded-lg transition" title="Copiar gráfica al portapapeles como imagen">
+                        <i class="bi bi-clipboard-check mr-1"></i> Copiar
+                    </button>
+                    <button type="button" onclick="descargarGraficaPNG('chartProveedores', 'Distribucion_Proveedores_SIST_LQ')" class="p-1.5 text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition" title="Descargar PNG">
+                        <i class="bi bi-download"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="relative w-full h-72 flex items-center justify-center">
+                <canvas id="chartProveedores"></canvas>
+            </div>
+        </div>
+
+        <!-- Gráfica 3: Inversión por Proyecto -->
+        <div class="bg-white border border-slate-200/80 rounded-3xl p-6 shadow-sm flex flex-col justify-between">
+            <div class="flex items-center justify-between mb-4">
+                <div>
+                    <h3 class="font-bold text-slate-800 text-sm flex items-center">
+                        <i class="bi bi-bar-chart-steps text-teal-600 mr-2 text-base"></i>
+                        Inversión por Proyecto / Centro de Costos
+                    </h3>
+                    <p class="text-xs text-slate-400 mt-0.5">Asignación presupuestaria acumulada por cada centro operativo</p>
+                </div>
+                <div class="flex items-center space-x-1.5">
+                    <button type="button" onclick="copiarGraficaAlPortapapeles('chartProyectos')" class="px-2.5 py-1 text-xs font-bold bg-slate-100 hover:bg-teal-50 hover:text-teal-700 text-slate-600 rounded-lg transition" title="Copiar gráfica al portapapeles como imagen">
+                        <i class="bi bi-clipboard-check mr-1"></i> Copiar
+                    </button>
+                    <button type="button" onclick="descargarGraficaPNG('chartProyectos', 'Inversion_Proyectos_SIST_LQ')" class="p-1.5 text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition" title="Descargar PNG">
+                        <i class="bi bi-download"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="relative w-full h-72">
+                <canvas id="chartProyectos"></canvas>
+            </div>
+        </div>
+
+        <!-- Gráfica 4: Top Ítems Facturados -->
+        <div class="bg-white border border-slate-200/80 rounded-3xl p-6 shadow-sm flex flex-col justify-between">
+            <div class="flex items-center justify-between mb-4">
+                <div>
+                    <h3 class="font-bold text-slate-800 text-sm flex items-center">
+                        <i class="bi bi-tags-fill text-purple-600 mr-2 text-base"></i>
+                        Top Ítems y Materiales Más Requeridos
+                    </h3>
+                    <p class="text-xs text-slate-400 mt-0.5">Demanda acumulada de insumos según órdenes de compra</p>
+                </div>
+                <div class="flex items-center space-x-1.5">
+                    <button type="button" onclick="copiarGraficaAlPortapapeles('chartItems')" class="px-2.5 py-1 text-xs font-bold bg-slate-100 hover:bg-purple-50 hover:text-purple-700 text-slate-600 rounded-lg transition" title="Copiar gráfica al portapapeles como imagen">
+                        <i class="bi bi-clipboard-check mr-1"></i> Copiar
+                    </button>
+                    <button type="button" onclick="descargarGraficaPNG('chartItems', 'Top_Items_SIST_LQ')" class="p-1.5 text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition" title="Descargar PNG">
+                        <i class="bi bi-download"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="relative w-full h-72">
+                <canvas id="chartItems"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- =========================================================================
      5. SECCIÓN SPA NATIVA: NUEVA / EDITAR ORDEN DE COMPRA (SIN OFFCANVAS)
      ========================================================================= -->
 <div id="section-nueva-orden" class="app-section hidden w-full pb-16 animate-fade-in">
@@ -2103,9 +2406,32 @@ async function reproducirBienvenidaAstrid() {
             const audioSrc = data.audio_url || (data.audio_b64 ? `data:${data.audio_mime || 'audio/mp3'};base64,${data.audio_b64}` : null);
             if (audioSrc) {
                 currentAstridAudio = new Audio(audioSrc);
-                currentAstridAudio.volume = 0.45; // Tono ejecutivo suave
+                window.currentAstridAudio = currentAstridAudio;
+                currentAstridAudio.volume = 0.55; // Tono ejecutivo suave y claro
+                window.astridAudioEnReproduccion = true;
+                if (typeof window.detenerLoopEscuchaPermanente === 'function') {
+                    window.detenerLoopEscuchaPermanente();
+                }
+                if (typeof window.actualizarHUDVisualAstrid === 'function') {
+                    window.actualizarHUDVisualAstrid("hablando", "🟣 Astrid saludando...");
+                }
+
+                currentAstridAudio.onended = function() {
+                    console.log("Audio de bienvenida finalizado. Iniciando modo escucha permanente con palabra clave 'Astrid'...");
+                    window.astridAudioEnReproduccion = false;
+                    if (typeof window.actualizarHUDVisualAstrid === 'function') {
+                        window.actualizarHUDVisualAstrid("escuchando");
+                    }
+                    if (typeof window.iniciarLoopEscuchaPermanente === 'function') {
+                        window.iniciarLoopEscuchaPermanente();
+                    }
+                };
                 currentAstridAudio.play().catch(e => {
                     console.warn("Reproducción automática de bienvenida silenciada por política de navegador:", e);
+                    window.astridAudioEnReproduccion = false;
+                    if (typeof window.iniciarLoopEscuchaPermanente === 'function') {
+                        window.iniciarLoopEscuchaPermanente();
+                    }
                 });
             }
         }
@@ -2114,29 +2440,35 @@ async function reproducirBienvenidaAstrid() {
     }
 }
 
-function iniciarDictadoAstrid() {
-    if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
-        Swal.fire('No soportado', 'Tu navegador no soporta dictado por voz.', 'info');
-        return;
+function iniciarDictadoContinuoAstrid() {
+    if (typeof window.iniciarLoopEscuchaPermanente === 'function') {
+        window.astridEscuchaPermanente = true;
+        localStorage.setItem('astrid_escucha_permanente', 'true');
+        window.iniciarLoopEscuchaPermanente();
+        const btn1 = document.getElementById('btn-astrid-mic');
+        const btn2 = document.getElementById('btn-astrid-floating-mic');
+        [btn1, btn2].forEach(b => {
+            if (b) b.classList.add('bg-rose-500', 'text-white', 'animate-pulse');
+        });
     }
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    const recognition = new SpeechRecognition();
-    recognition.lang = 'es-VE';
-    recognition.interimResults = false;
-    recognition.maxAlternatives = 1;
-    
-    const btn = document.getElementById('btn-astrid-mic');
-    btn.classList.add('bg-rose-100', 'text-rose-600', 'animate-pulse');
-    
-    recognition.onresult = function(event) {
-        const result = event.results[0][0].transcript;
-        document.getElementById('astrid-input').value = result;
-        enviarMensajeAstrid();
-    };
-    recognition.onend = function() {
-        btn.classList.remove('bg-rose-100', 'text-rose-600', 'animate-pulse');
-    };
-    recognition.start();
+}
+window.iniciarDictadoContinuoAstrid = iniciarDictadoContinuoAstrid;
+
+function iniciarDictadoAstrid() {
+    if (typeof window.toggleModoEscuchaPermanenteAstrid === 'function') {
+        window.toggleModoEscuchaPermanenteAstrid();
+        const btn1 = document.getElementById('btn-astrid-mic');
+        const btn2 = document.getElementById('btn-astrid-floating-mic');
+        [btn1, btn2].forEach(b => {
+            if (b) {
+                if (window.astridEscuchaPermanente) {
+                    b.classList.add('bg-rose-500', 'text-white', 'animate-pulse');
+                } else {
+                    b.classList.remove('bg-rose-500', 'text-white', 'animate-pulse');
+                }
+            }
+        });
+    }
 }
 
 </script>
@@ -2219,6 +2551,435 @@ async function cargarPerfilProveedor(rif) {
         Swal.fire('Error', 'Error de conexión', 'error');
         switchTab('proveedores');
     }
+}
+
+// =========================================================================
+// MÓDULO DE ANALÍTICA Y REPORTES VISUALES (CHART.JS)
+// =========================================================================
+window.analiticaCharts = {};
+
+function onCambioPeriodoAnalitica() {
+    const elPeriodo = document.getElementById('filtro_analitica_periodo');
+    if (elPeriodo && elPeriodo.value) {
+        const elDesde = document.getElementById('filtro_analitica_desde');
+        const elHasta = document.getElementById('filtro_analitica_hasta');
+        if (elDesde) elDesde.value = '';
+        if (elHasta) elHasta.value = '';
+    }
+    cargarAnaliticaReportes();
+}
+
+function onCambioFechaManualAnalitica() {
+    const elPeriodo = document.getElementById('filtro_analitica_periodo');
+    if (elPeriodo) elPeriodo.value = '';
+    cargarAnaliticaReportes();
+}
+
+function aplicarFiltrosAnalitica() {
+    cargarAnaliticaReportes();
+}
+
+function limpiarFiltrosAnalitica() {
+    const elPeriodo = document.getElementById('filtro_analitica_periodo');
+    const elDesde = document.getElementById('filtro_analitica_desde');
+    const elHasta = document.getElementById('filtro_analitica_hasta');
+    const elProv = document.getElementById('filtro_analitica_proveedor');
+    const elProy = document.getElementById('filtro_analitica_proyecto');
+
+    if (elPeriodo) elPeriodo.value = '';
+    if (elDesde) elDesde.value = '';
+    if (elHasta) elHasta.value = '';
+    if (elProv) elProv.value = '';
+    if (elProy) elProy.value = '';
+
+    cargarAnaliticaReportes();
+}
+
+async function cargarAnaliticaReportes(filtros = null) {
+    try {
+        // 1. Recopilar parámetros de filtro activos
+        const elPeriodo = document.getElementById('filtro_analitica_periodo');
+        const elDesde = document.getElementById('filtro_analitica_desde');
+        const elHasta = document.getElementById('filtro_analitica_hasta');
+        const elProv = document.getElementById('filtro_analitica_proveedor');
+        const elProy = document.getElementById('filtro_analitica_proyecto');
+
+        const periodo = (filtros && filtros.periodo !== undefined) ? filtros.periodo : (elPeriodo ? elPeriodo.value : '');
+        const desde = (filtros && filtros.desde !== undefined) ? filtros.desde : (elDesde ? elDesde.value : '');
+        const hasta = (filtros && filtros.hasta !== undefined) ? filtros.hasta : (elHasta ? elHasta.value : '');
+        const proveedor = (filtros && filtros.proveedor !== undefined) ? filtros.proveedor : (elProv ? elProv.value : '');
+        const proyecto = (filtros && filtros.proyecto !== undefined) ? filtros.proyecto : (elProy ? elProy.value : '');
+
+        const params = new URLSearchParams();
+        if (periodo) params.append('periodo', periodo);
+        if (desde) params.append('desde', desde);
+        if (hasta) params.append('hasta', hasta);
+        if (proveedor) params.append('proveedor', proveedor);
+        if (proyecto) params.append('proyecto', proyecto);
+
+        const qs = params.toString() ? '?' + params.toString() : '';
+
+        // Sincronizar enlace de exportación Excel con filtros activos
+        const btnExcel = document.getElementById('btn_descargar_excel_analitico');
+        if (btnExcel) {
+            btnExcel.href = '/api/exportar/reporte-analitico' + qs;
+        }
+
+        // Actualizar badge de estado de filtro
+        const badgeEstado = document.getElementById('badge_filtro_analitica_estado');
+        if (badgeEstado) {
+            let estadoTxt = 'Mostrando: Histórico Completo';
+            if (periodo) {
+                const nombresP = { 'hoy': 'Hoy', 'semana': 'Esta Semana', 'mes': 'Este Mes', 'ultimos_30': 'Últimos 30 días', 'ano': 'Año en Curso' };
+                estadoTxt = `Filtro: ${nombresP[periodo] || periodo}`;
+            } else if (desde || hasta) {
+                estadoTxt = `Rango: ${desde || 'Inicio'} al ${hasta || 'Hoy'}`;
+            } else if (proveedor) {
+                estadoTxt = `Proveedor: ${proveedor}`;
+            } else if (proyecto) {
+                estadoTxt = `Proyecto: ${proyecto}`;
+            }
+            badgeEstado.textContent = estadoTxt;
+            if (params.toString()) {
+                badgeEstado.className = 'text-[10px] font-bold px-2.5 py-1 bg-emerald-100 text-emerald-800 rounded-full border border-emerald-300';
+            } else {
+                badgeEstado.className = 'text-[10px] font-bold px-2.5 py-1 bg-slate-100 text-slate-600 rounded-full border border-slate-200';
+            }
+        }
+
+        const res = await fetch('/api/analitica/datos' + qs);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!data.success) return;
+
+        // Poblar selects de proveedores y proyectos dinámicamente si están vacíos
+        if (data.filtros_disponibles) {
+            if (elProv && elProv.options.length <= 1 && data.filtros_disponibles.proveedores) {
+                const valActualProv = elProv.value;
+                data.filtros_disponibles.proveedores.forEach(p => {
+                    const opt = document.createElement('option');
+                    opt.value = p;
+                    opt.textContent = p;
+                    elProv.appendChild(opt);
+                });
+                if (valActualProv) elProv.value = valActualProv;
+            }
+            if (elProy && elProy.options.length <= 1 && data.filtros_disponibles.proyectos) {
+                const valActualProy = elProy.value;
+                data.filtros_disponibles.proyectos.forEach(pr => {
+                    const opt = document.createElement('option');
+                    opt.value = pr;
+                    opt.textContent = pr;
+                    elProy.appendChild(opt);
+                });
+                if (valActualProy) elProy.value = valActualProy;
+            }
+        }
+
+        // 1. Actualizar KPIs
+        const kpis = data.kpis || {};
+        const elUsd = document.getElementById('kpi_analitica_usd');
+        const elBs = document.getElementById('kpi_analitica_bs');
+        const elTicket = document.getElementById('kpi_analitica_ticket');
+        const elOrd = document.getElementById('kpi_analitica_ordenes');
+        const elTopProv = document.getElementById('kpi_analitica_top_prov');
+        const elTopProvSub = document.getElementById('kpi_analitica_top_prov_sub');
+        const elTopProy = document.getElementById('kpi_analitica_top_proy');
+        const elTopProySub = document.getElementById('kpi_analitica_top_proy_sub');
+
+        if (elUsd) elUsd.textContent = '$' + (kpis.total_usd || 0).toLocaleString('es-VE', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+        if (elBs) elBs.textContent = 'Bs. ' + (kpis.total_bs || 0).toLocaleString('es-VE', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+        if (elTicket) elTicket.textContent = '$' + (kpis.ticket_promedio_usd || 0).toLocaleString('es-VE', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+        if (elOrd) elOrd.textContent = kpis.total_ordenes || 0;
+
+        if (elTopProv) {
+            elTopProv.textContent = (kpis.top_proveedor && kpis.top_proveedor.nombre) ? kpis.top_proveedor.nombre : 'N/A';
+            elTopProv.title = elTopProv.textContent;
+        }
+        if (elTopProvSub) {
+            const m = (kpis.top_proveedor && kpis.top_proveedor.monto) ? kpis.top_proveedor.monto.toLocaleString('es-VE', {minimumFractionDigits: 2}) : '0,00';
+            const pct = (kpis.top_proveedor && kpis.top_proveedor.pct) ? kpis.top_proveedor.pct : 0;
+            elTopProvSub.textContent = `$${m} (${pct}%)`;
+        }
+
+        if (elTopProy) {
+            elTopProy.textContent = (kpis.top_proyecto && kpis.top_proyecto.nombre) ? kpis.top_proyecto.nombre : 'N/A';
+            elTopProy.title = elTopProy.textContent;
+        }
+        if (elTopProySub) {
+            const m = (kpis.top_proyecto && kpis.top_proyecto.monto) ? kpis.top_proyecto.monto.toLocaleString('es-VE', {minimumFractionDigits: 2}) : '0,00';
+            const pct = (kpis.top_proyecto && kpis.top_proyecto.pct) ? kpis.top_proyecto.pct : 0;
+            elTopProySub.textContent = `$${m} (${pct}%)`;
+        }
+
+        // 2. Destruir instancias previas para refresco limpio
+        ['chartEvolucion', 'chartProveedores', 'chartProyectos', 'chartItems'].forEach(id => {
+            if (window.analiticaCharts[id]) {
+                try { window.analiticaCharts[id].destroy(); } catch(e){}
+                window.analiticaCharts[id] = null;
+            }
+        });
+
+        if (typeof Chart === 'undefined') {
+            console.warn('Chart.js no está disponible.');
+            return;
+        }
+
+        const graf = data.graficas || {};
+
+        // 3. Gráfica 1: Evolución Temporal
+        const canvasEvol = document.getElementById('chartEvolucion');
+        if (canvasEvol && graf.evolucion) {
+            const ctx1 = canvasEvol.getContext('2d');
+            const gradient1 = ctx1.createLinearGradient(0, 0, 0, 260);
+            gradient1.addColorStop(0, 'rgba(16, 185, 129, 0.35)');
+            gradient1.addColorStop(1, 'rgba(16, 185, 129, 0.02)');
+
+            window.analiticaCharts['chartEvolucion'] = new Chart(ctx1, {
+                type: 'line',
+                data: {
+                    labels: graf.evolucion.labels || [],
+                    datasets: [
+                        {
+                            label: 'Total Facturado USD',
+                            data: graf.evolucion.usd || [],
+                            borderColor: '#059669',
+                            backgroundColor: gradient1,
+                            borderWidth: 2.5,
+                            pointBackgroundColor: '#059669',
+                            pointRadius: 4,
+                            pointHoverRadius: 6,
+                            fill: true,
+                            tension: 0.3
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: {
+                        legend: { position: 'top', labels: { boxWidth: 12, font: { weight: 'bold', size: 11 } } },
+                        tooltip: {
+                            callbacks: {
+                                label: function(c) {
+                                    return ' USD: $' + (c.raw || 0).toLocaleString('es-VE', {minimumFractionDigits: 2});
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            grid: { color: '#f1f5f9' },
+                            ticks: {
+                                callback: function(val) { return '$' + val.toLocaleString('es-VE'); }
+                            }
+                        },
+                        x: { grid: { display: false } }
+                    }
+                }
+            });
+        }
+
+        // 4. Gráfica 2: Proveedores (Doughnut)
+        const canvasProv = document.getElementById('chartProveedores');
+        if (canvasProv && graf.proveedores) {
+            const ctx2 = canvasProv.getContext('2d');
+            const coloresProv = ['#0d9488', '#6366f1', '#f59e0b', '#10b981', '#ec4899', '#06b6d4', '#64748b'];
+
+            window.analiticaCharts['chartProveedores'] = new Chart(ctx2, {
+                type: 'doughnut',
+                data: {
+                    labels: graf.proveedores.labels || [],
+                    datasets: [{
+                        data: graf.proveedores.valores || [],
+                        backgroundColor: coloresProv.slice(0, (graf.proveedores.labels || []).length),
+                        borderWidth: 2,
+                        borderColor: '#ffffff',
+                        hoverOffset: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    cutout: '62%',
+                    plugins: {
+                        legend: { position: 'bottom', labels: { boxWidth: 10, padding: 12, font: { size: 10 } } },
+                        tooltip: {
+                            callbacks: {
+                                label: function(c) {
+                                    const val = c.raw || 0;
+                                    const total = c.dataset.data.reduce((a, b) => a + b, 0);
+                                    const pct = total > 0 ? ((val / total) * 100).toFixed(1) : 0;
+                                    return ` ${c.label}: $${val.toLocaleString('es-VE', {minimumFractionDigits: 2})} (${pct}%)`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // 5. Gráfica 3: Proyectos (Horizontal Bar)
+        const canvasProy = document.getElementById('chartProyectos');
+        if (canvasProy && graf.proyectos) {
+            const ctx3 = canvasProy.getContext('2d');
+            window.analiticaCharts['chartProyectos'] = new Chart(ctx3, {
+                type: 'bar',
+                data: {
+                    labels: graf.proyectos.labels || [],
+                    datasets: [{
+                        label: 'Gasto Ejecutado (USD)',
+                        data: graf.proyectos.valores || [],
+                        backgroundColor: '#0f766e',
+                        hoverBackgroundColor: '#115e59',
+                        borderRadius: 8,
+                        barThickness: 18
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: function(c) {
+                                    return ' USD: $' + (c.raw || 0).toLocaleString('es-VE', {minimumFractionDigits: 2});
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            beginAtZero: true,
+                            grid: { color: '#f1f5f9' },
+                            ticks: {
+                                callback: function(val) { return '$' + val.toLocaleString('es-VE'); }
+                            }
+                        },
+                        y: { grid: { display: false } }
+                    }
+                }
+            });
+        }
+
+        // 6. Gráfica 4: Top Ítems Facturados
+        const canvasItems = document.getElementById('chartItems');
+        if (canvasItems && graf.items) {
+            const ctx4 = canvasItems.getContext('2d');
+            window.analiticaCharts['chartItems'] = new Chart(ctx4, {
+                type: 'bar',
+                data: {
+                    labels: graf.items.labels || [],
+                    datasets: [{
+                        label: 'Cantidad / Demanda Acumulada',
+                        data: graf.items.valores || [],
+                        backgroundColor: '#8b5cf6',
+                        hoverBackgroundColor: '#7c3aed',
+                        borderRadius: 8,
+                        barThickness: 22
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: function(c) {
+                                    return ' Unidades requeridas: ' + (c.raw || 0);
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: { beginAtZero: true, grid: { color: '#f1f5f9' } },
+                        x: { grid: { display: false } }
+                    }
+                }
+            });
+        }
+
+    } catch (err) {
+        console.error('Error cargando analítica:', err);
+    }
+}
+
+async function copiarGraficaAlPortapapeles(canvasId) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+
+    try {
+        // Dibujar en canvas temporal con fondo blanco para que al pegar en Word/PowerPoint no sea transparente
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = canvas.width;
+        tempCanvas.height = canvas.height;
+        const ctx = tempCanvas.getContext('2d');
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+        ctx.drawImage(canvas, 0, 0);
+
+        tempCanvas.toBlob(async (blob) => {
+            if (!blob) {
+                descargarGraficaPNG(canvasId, 'Grafica_SIST_LQ');
+                return;
+            }
+            try {
+                if (navigator.clipboard && window.ClipboardItem) {
+                    await navigator.clipboard.write([
+                        new ClipboardItem({ 'image/png': blob })
+                    ]);
+                    Swal.fire({
+                        toast: true,
+                        position: 'top-end',
+                        icon: 'success',
+                        title: '¡Gráfica copiada al portapapeles!',
+                        text: 'Pégala directamente con Ctrl+V en Word, PowerPoint, WhatsApp o correo.',
+                        showConfirmButton: false,
+                        timer: 3500
+                    });
+                } else {
+                    descargarGraficaPNG(canvasId, 'Grafica_SIST_LQ');
+                }
+            } catch (errClip) {
+                // Si el navegador bloquea el portapapeles por permisos, descargar PNG directamente
+                descargarGraficaPNG(canvasId, 'Grafica_SIST_LQ');
+                Swal.fire({
+                    toast: true,
+                    position: 'top-end',
+                    icon: 'info',
+                    title: 'Gráfica descargada en PNG',
+                    text: 'El navegador restringió el copiado al portapapeles; se guardó como archivo PNG.',
+                    showConfirmButton: false,
+                    timer: 3500
+                });
+            }
+        }, 'image/png');
+    } catch(e) {
+        console.error('Error en copiarGraficaAlPortapapeles:', e);
+        descargarGraficaPNG(canvasId, 'Grafica_SIST_LQ');
+    }
+}
+
+function descargarGraficaPNG(canvasId, filename) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = canvas.width;
+    tempCanvas.height = canvas.height;
+    const ctx = tempCanvas.getContext('2d');
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+    ctx.drawImage(canvas, 0, 0);
+
+    const a = document.createElement('a');
+    a.download = (filename || 'Grafica_Analitica') + '.png';
+    a.href = tempCanvas.toDataURL('image/png', 1.0);
+    a.click();
 }
 
 </script>

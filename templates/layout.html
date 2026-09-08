@@ -122,6 +122,12 @@
                     Gestión y Operaciones
                 </div>
 
+                <button type="button" onclick="switchTab('reportes')" 
+                   class="w-full text-left flex items-center px-4 py-2.5 text-sm font-medium rounded-xl text-brand-100/80 hover:bg-brand-800/60 hover:text-white transition-all nav-btn" data-tab="reportes">
+                    <i class="bi bi-graph-up-arrow mr-3 text-base text-emerald-400"></i>
+                    Reportes y Estadísticas
+                </button>
+
                 <button type="button" onclick="switchTab('ordenes')" 
                    class="w-full text-left flex items-center px-4 py-2.5 text-sm font-medium rounded-xl text-brand-100/80 hover:bg-brand-800/60 hover:text-white transition-all nav-btn" data-tab="ordenes">
                     <i class="bi bi-journal-check mr-3 text-base text-brand-300"></i>
@@ -358,6 +364,7 @@
             });
 
             // Llamar a las funciones de carga de datos si es necesario
+            if (tabId === 'reportes' && typeof cargarAnaliticaReportes === 'function') cargarAnaliticaReportes();
             if (tabId === 'ordenes' && typeof cargarOrdenesModal === 'function') cargarOrdenesModal();
             if (tabId === 'proveedores' && typeof cargarProveedoresModal === 'function') cargarProveedoresModal();
             if (tabId === 'catalogo' && typeof cargarCatalogoModal === 'function') cargarCatalogoModal();
@@ -838,6 +845,41 @@
                 if (data.success) {
                     agregarMensajeEnAmbosChats('assistant', data.respuesta);
                     if (data.historial) window.astridChatState = data.historial;
+
+                    // Si Astrid envió voz en base64, reproducirla de inmediato
+                    if (data.audio_b64) {
+                        try {
+                            if (window.currentAstridAudio) {
+                                try { window.currentAstridAudio.pause(); } catch(e){}
+                            }
+                            window.astridAudioEnReproduccion = true;
+                            detenerLoopEscuchaPermanente();
+                            actualizarHUDVisualAstrid("hablando", "🟣 Astrid respondiendo...");
+
+                            const audioVoice = new Audio(`data:${data.audio_mime || 'audio/mp3'};base64,${data.audio_b64}`);
+                            window.currentAstridAudio = audioVoice;
+                            audioVoice.volume = 0.55;
+                            audioVoice.onended = function() {
+                                window.astridAudioEnReproduccion = false;
+                                actualizarHUDVisualAstrid("escuchando");
+                                if (window.astridEscuchaPermanente) {
+                                    setTimeout(() => {
+                                        iniciarLoopEscuchaPermanente();
+                                    }, 400);
+                                }
+                            };
+                            audioVoice.play().catch(e => {
+                                console.warn('Audio de voz Astrid silenciado por política del navegador:', e);
+                                window.astridAudioEnReproduccion = false;
+                                actualizarHUDVisualAstrid("escuchando");
+                                if (window.astridEscuchaPermanente) iniciarLoopEscuchaPermanente();
+                            });
+                        } catch(err) {
+                            console.warn('Error reproduciendo audio Astrid:', err);
+                            window.astridAudioEnReproduccion = false;
+                            actualizarHUDVisualAstrid("escuchando");
+                        }
+                    }
                 } else {
                     agregarMensajeEnAmbosChats('assistant', `⚠️ Error: ${data.error || 'No se pudo procesar la solicitud.'}`);
                 }
@@ -889,6 +931,10 @@
         }
 
         function iniciarDictadoAstridFloating() {
+            if (window.astridEscuchaPermanente) {
+                // Si el modo permanente está activo, este botón sirve para forzar captura o abrir
+                actualizarHUDVisualAstrid("activada", "⚡ Te escucho...");
+            }
             const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
             if (!SpeechRecognition) {
                 if (typeof Swal !== 'undefined') Swal.fire('No compatible', 'El dictado por voz no es compatible con este navegador.', 'info');
@@ -917,6 +963,209 @@
             recognition.start();
         }
 
+        // =========================================================================
+        // MOTOR DE ESCUCHA PERMANENTE, PALABRA DE ACTIVACIÓN ("ASTRID") Y AUTO-ENTRENAMIENTO
+        // =========================================================================
+        window.astridEscuchaPermanente = localStorage.getItem('astrid_escucha_permanente') !== 'false';
+        window.astridAudioEnReproduccion = false;
+        window.astridReconocimientoActivo = null;
+        window.astridDebounceAprender = null;
+
+        function reproducirChimeActivacionAstrid() {
+            try {
+                const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                if (!AudioCtx) return;
+                const ctx = new AudioCtx();
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(523.25, ctx.currentTime); // C5
+                osc.frequency.exponentialRampToValueAtTime(783.99, ctx.currentTime + 0.12); // G5
+                gain.gain.setValueAtTime(0.2, ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.28);
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.start();
+                osc.stop(ctx.currentTime + 0.3);
+            } catch(e){}
+        }
+
+        function actualizarHUDVisualAstrid(estado, texto) {
+            const hud = document.getElementById('astrid-wake-hud');
+            const ping = document.getElementById('astrid-hud-ping');
+            const dot = document.getElementById('astrid-hud-dot');
+            const txt = document.getElementById('astrid-hud-text');
+            if (!hud || !txt) return;
+
+            if (estado === "activada") {
+                hud.className = "fixed bottom-8 right-24 z-40 bg-indigo-900 text-white px-3.5 py-1.5 rounded-full text-[11px] font-bold shadow-2xl border border-cyan-400 ring-2 ring-cyan-400/50 flex items-center gap-2 cursor-pointer transition-all duration-300 scale-105 select-none";
+                if (ping) { ping.className = "animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-90"; ping.style.display = 'inline-flex'; }
+                if (dot) dot.className = "relative inline-flex rounded-full h-2.5 w-2.5 bg-cyan-400";
+                txt.textContent = texto || "⚡ ¡Astrid activada!";
+            } else if (estado === "hablando") {
+                hud.className = "fixed bottom-8 right-24 z-40 bg-purple-950 text-white px-3.5 py-1.5 rounded-full text-[11px] font-medium shadow-lg border border-purple-500/40 flex items-center gap-2 cursor-pointer transition-all duration-300 select-none";
+                if (ping) { ping.className = "animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75"; ping.style.display = 'inline-flex'; }
+                if (dot) dot.className = "relative inline-flex rounded-full h-2.5 w-2.5 bg-purple-400";
+                txt.textContent = texto || "🟣 Astrid respondiendo...";
+            } else if (estado === "aprendiendo") {
+                hud.className = "fixed bottom-8 right-24 z-40 bg-slate-900 text-white px-3.5 py-1.5 rounded-full text-[11px] font-medium shadow-lg border border-emerald-500/40 flex items-center gap-2 cursor-pointer transition-all duration-300 select-none";
+                if (ping) { ping.className = "animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-80"; ping.style.display = 'inline-flex'; }
+                if (dot) dot.className = "relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-400";
+                txt.textContent = texto || "🧠 Astrid aprendiendo de tu voz...";
+            } else if (estado === "pausada") {
+                hud.className = "fixed bottom-8 right-24 z-40 bg-slate-800 text-slate-300 px-3.5 py-1.5 rounded-full text-[11px] font-medium shadow border border-slate-700 flex items-center gap-2 cursor-pointer transition-all duration-300 select-none opacity-80 hover:opacity-100";
+                if (ping) ping.style.display = 'none';
+                if (dot) dot.className = "relative inline-flex rounded-full h-2.5 w-2.5 bg-slate-500";
+                txt.textContent = texto || "⚪ Astrid: Escucha pausada (Clic para activar)";
+            } else { // escuchando activa
+                hud.className = "fixed bottom-8 right-24 z-40 bg-slate-900/90 backdrop-blur-md text-white px-3.5 py-1.5 rounded-full text-[11px] font-medium shadow-lg border border-indigo-500/30 flex items-center gap-2 cursor-pointer transition-all duration-300 hover:scale-105 select-none";
+                if (ping) { ping.className = "animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"; ping.style.display = 'inline-flex'; }
+                if (dot) dot.className = "relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500";
+                txt.textContent = texto || 'Astrid: Escucha Activa (Di "Astrid")';
+            }
+        }
+
+        async function enviarVozParaAprendizajeAstrid(texto) {
+            try {
+                if (!texto || texto.length < 4) return;
+                await fetch('/api/astrid/aprender', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ texto: texto, fuente: 'escucha_pasiva' })
+                });
+                setTimeout(() => {
+                    actualizarHUDVisualAstrid("escuchando");
+                }, 1200);
+            } catch(e){
+                actualizarHUDVisualAstrid("escuchando");
+            }
+        }
+
+        function procesarVozCapturadaAstrid(transcript) {
+            if (!transcript || transcript.trim().length === 0) return;
+            const t = transcript.trim();
+            console.log("[Astrid Escucha Permanente] Captado:", t);
+            
+            const regexWake = /\b(astrid|astrit|astrik|astrin|asrid|astry)\b/i;
+            if (regexWake.test(t)) {
+                // WAKE WORD DETECTADA
+                reproducirChimeActivacionAstrid();
+                actualizarHUDVisualAstrid("activada", "⚡ ¡Astrid activada!");
+                
+                // Extraer comando si el usuario dijo algo más que solo 'Astrid'
+                const comandoLimpio = t.replace(/\b(astrid|astrit|astrik|astrin|asrid|astry)[,.:;!?\s]*/i, '').trim();
+                
+                // Abrir ventana flotante o drawer de Astrid
+                const win = document.getElementById('astrid-floating-window');
+                if (win && win.classList.contains('hidden')) {
+                    if (typeof toggleAstridFloating === 'function') toggleAstridFloating(true);
+                } else if (typeof window.abrirAstridChat === 'function') {
+                    window.abrirAstridChat();
+                }
+                
+                if (comandoLimpio.length >= 3) {
+                    console.log("[Astrid] Comando detectado con wake word:", comandoLimpio);
+                    window.enviarMensajeAstridGlobal(comandoLimpio);
+                } else {
+                    console.log("[Astrid] Wake word solo detectado. Solicitando instrucción...");
+                    window.enviarMensajeAstridGlobal("Astrid");
+                }
+            } else {
+                // VOZ PASIVA AMBIENTAL -> Auto-entrenamiento continuo y perfilado en datas JSON
+                actualizarHUDVisualAstrid("aprendiendo", "🧠 Astrid aprendiendo de tu voz...");
+                if (window.astridDebounceAprender) clearTimeout(window.astridDebounceAprender);
+                window.astridDebounceAprender = setTimeout(() => {
+                    enviarVozParaAprendizajeAstrid(t);
+                }, 1500);
+            }
+        }
+
+        function iniciarLoopEscuchaPermanente() {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!SpeechRecognition) return;
+            if (!window.astridEscuchaPermanente) return;
+            if (window.astridAudioEnReproduccion) return;
+            
+            try {
+                if (window.astridReconocimientoActivo) {
+                    try { window.astridReconocimientoActivo.abort(); } catch(e){}
+                }
+                const rec = new SpeechRecognition();
+                rec.lang = 'es-VE';
+                rec.continuous = true;
+                rec.interimResults = false;
+                
+                rec.onresult = function(event) {
+                    if (window.astridAudioEnReproduccion) return;
+                    const lastIndex = event.results.length - 1;
+                    if (lastIndex >= 0 && event.results[lastIndex][0]) {
+                        const transcript = event.results[lastIndex][0].transcript;
+                        procesarVozCapturadaAstrid(transcript);
+                    }
+                };
+                
+                rec.onend = function() {
+                    // Si seguimos en modo escucha y Astrid no está hablando, reconectar de inmediato
+                    if (window.astridEscuchaPermanente && !window.astridAudioEnReproduccion) {
+                        setTimeout(() => {
+                            if (window.astridEscuchaPermanente && !window.astridAudioEnReproduccion) {
+                                iniciarLoopEscuchaPermanente();
+                            }
+                        }, 300);
+                    }
+                };
+                
+                rec.onerror = function(err) {
+                    console.warn("[Astrid Escucha Permanente] Evento:", err.error);
+                    if (window.astridEscuchaPermanente && !window.astridAudioEnReproduccion && err.error !== 'not-allowed') {
+                        setTimeout(() => {
+                            if (window.astridEscuchaPermanente && !window.astridAudioEnReproduccion) {
+                                iniciarLoopEscuchaPermanente();
+                            }
+                        }, 800);
+                    }
+                };
+                
+                window.astridReconocimientoActivo = rec;
+                rec.start();
+                actualizarHUDVisualAstrid("escuchando");
+            } catch(e) {
+                console.warn("[Astrid] Error iniciando escucha permanente:", e);
+            }
+        }
+
+        function detenerLoopEscuchaPermanente() {
+            if (window.astridReconocimientoActivo) {
+                try { window.astridReconocimientoActivo.stop(); } catch(e){}
+                window.astridReconocimientoActivo = null;
+            }
+        }
+
+        function toggleModoEscuchaPermanenteAstrid() {
+            window.astridEscuchaPermanente = !window.astridEscuchaPermanente;
+            localStorage.setItem('astrid_escucha_permanente', window.astridEscuchaPermanente ? 'true' : 'false');
+            if (window.astridEscuchaPermanente) {
+                actualizarHUDVisualAstrid("escuchando");
+                iniciarLoopEscuchaPermanente();
+            } else {
+                actualizarHUDVisualAstrid("pausada");
+                detenerLoopEscuchaPermanente();
+            }
+        }
+        window.toggleModoEscuchaPermanenteAstrid = toggleModoEscuchaPermanenteAstrid;
+        window.iniciarLoopEscuchaPermanente = iniciarLoopEscuchaPermanente;
+        window.detenerLoopEscuchaPermanente = detenerLoopEscuchaPermanente;
+
+        document.addEventListener('DOMContentLoaded', function() {
+            if (window.astridEscuchaPermanente) {
+                setTimeout(() => {
+                    iniciarLoopEscuchaPermanente();
+                }, 1200);
+            } else {
+                actualizarHUDVisualAstrid("pausada");
+            }
+        });
+
         // Animación helper
         document.head.insertAdjacentHTML('beforeend', `
             <style>
@@ -927,8 +1176,20 @@
     </script>
 
     <!-- =========================================================================
-         ASTRID FLOATING WIDGET BUTTON & POPUP WINDOW
+         ASTRID FLOATING WIDGET BUTTON, HUD & POPUP WINDOW
          ========================================================================= -->
+    <!-- HUD Indicador de Escucha Permanente Astrid (Palabra de activación: 'Astrid') -->
+    <div id="astrid-wake-hud" 
+         class="fixed bottom-8 right-24 z-40 bg-slate-900/90 backdrop-blur-md text-white px-3.5 py-1.5 rounded-full text-[11px] font-medium shadow-lg border border-indigo-500/30 flex items-center gap-2 cursor-pointer transition-all duration-300 hover:scale-105 select-none"
+         onclick="toggleModoEscuchaPermanenteAstrid()" 
+         title="Haz clic para pausar o activar la escucha continua de Astrid (Palabra clave: 'Astrid')">
+        <span class="relative flex h-2.5 w-2.5">
+            <span id="astrid-hud-ping" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+            <span id="astrid-hud-dot" class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+        </span>
+        <span id="astrid-hud-text" class="tracking-wide">Astrid: Escucha Activa (Di "Astrid")</span>
+    </div>
+
     <!-- Botón Flotante Astrid -->
     <div class="fixed bottom-6 right-6 z-40">
         <button type="button" id="btn-astrid-floating" onclick="toggleAstridFloating()" 

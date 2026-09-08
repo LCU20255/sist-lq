@@ -1,0 +1,171 @@
+{
+  "muestras": [
+    {
+      "timestamp": "2026-09-08T13:57:40.096101+00:00",
+      "usuario": "Loreidy Quiñonez",
+      "fuente": "chat_directo",
+      "texto": "Astrid",
+      "longitud": 6,
+      "palabras_clave": [
+        "astrid"
+      ],
+      "estilo_inferido": "Directo y profesional"
+    },
+    {
+      "timestamp": "2026-09-08T13:57:44.938961+00:00",
+      "usuario": "Loreidy Quiñonez",
+      "fuente": "escucha_pasiva",
+      "texto": "Epa chamo qué tal, necesitamos revisar con urgencia la cotización del drill 100% algodón y el precio del tornillo a ver cómo sale en bolívares a tasa BCV",
+      "longitud": 153,
+      "palabras_clave": [
+        "epa",
+        "chamo",
+        "qué",
+        "tal",
+        "necesitamos",
+        "revisar",
+        "urgencia",
+        "cotización"
+      ],
+      "estilo_inferido": "Coloquial venezolano y cercano"
+    },
+    {
+      "timestamp": "2026-09-08T13:57:44.957390+00:00",
+      "usuario": "Loreidy Quiñonez",
+      "fuente": "chat_directo",
+      "texto": "Astrid, ¿cuánto cuesta el drill?",
+      "longitud": 32,
+      "palabras_clave": [
+        "astrid",
+        "cuánto",
+        "cuesta",
+        "drill"
+      ],
+      "estilo_inferido": "Operativo, directo y ágil"
+    },
+    {
+      "timestamp": "2026-09-08T13:58:02.833975+00:00",
+      "usuario": "Loreidy Quiñonez",
+      "fuente": "chat_directo",
+      "texto": "Astrid",
+      "longitud": 6,
+      "palabras_clave": [
+        "astrid"
+      ],
+      "estilo_inferido": "Operativo, directo y ágil"
+    },
+    {
+      "timestamp": "2026-09-08T13:58:04.229624+00:00",
+      "usuario": "Loreidy Quiñonez",
+      "fuente": "escucha_pasiva",
+      "texto": "Epa chamo qué tal, necesitamos revisar con urgencia la cotización del drill 100% algodón y el precio del tornillo a ver cómo sale en bolívares a tasa BCV",
+      "longitud": 153,
+      "palabras_clave": [
+        "epa",
+        "chamo",
+        "qué",
+        "tal",
+        "necesitamos",
+        "revisar",
+        "urgencia",
+        "cotización"
+      ],
+      "estilo_inferido": "Coloquial venezolano y cercano"
+    },
+    {
+      "timestamp": "2026-09-08T13:58:04.253198+00:00",
+      "usuario": "Loreidy Quiñonez",
+      "fuente": "chat_directo",
+      "texto": "Astrid, ¿cuánto cuesta el drill?",
+      "longitud": 32,
+      "palabras_clave": [
+        "astrid",
+        "cuánto",
+        "cuesta",
+        "drill"
+      ],
+      "estilo_inferido": "Operativo, directo y ágil"
+    },
+    {
+      "timestamp": "2026-09-08T14:00:09.218145+00:00",
+      "usuario": "Administrador Principal",
+      "fuente": "chat_directo",
+      "texto": "Astrid",
+      "longitud": 6,
+      "palabras_clave": [
+        "astrid"
+      ],
+      "estilo_inferido": "Directo y profesional"
+    },
+    {
+      "timestamp": "2026-09-08T14:00:27.724809+00:00",
+      "usuario": "Administrador Principal",
+      "fuente": "escucha_pasiva",
+      "texto": "consulta toda la Data",
+      "longitud": 21,
+      "palabras_clave": [
+        "consulta",
+        "toda",
+        "data"
+      ],
+      "estilo_inferido": "Directo y profesional"
+    },
+    {
+      "timestamp": "2026-09-08T14:00:30.605677+00:00",
+      "usuario": "Administrador Principal",
+      "fuente": "escucha_pasiva",
+      "texto": "del sistema",
+      "longitud": 11,
+      "palabras_clave": [
+        "sistema"
+      ],
+      "estilo_inferido": "Directo y profesional"
+    },
+    {
+      "timestamp": "2026-09-08T14:00:34.972791+00:00",
+      "usuario": "Administrador Principal",
+      "fuente": "chat_directo",
+      "texto": "Oye chamo, necesitamos revisar el precio del drill para la nueva orden",
+      "longitud": 70,
+      "palabras_clave": [
+        "oye",
+        "chamo",
+        "necesitamos",
+        "revisar",
+        "precio",
+        "drill",
+        "nueva",
+        "orden"
+      ],
+      "estilo_inferido": "Coloquial venezolano y cercano"
+    },
+    {
+      "timestamp": "2026-09-08T14:00:36.093594+00:00",
+      "usuario": "Administrador Principal",
+      "fuente": "chat_directo",
+      "texto": "Astrid",
+      "longitud": 6,
+      "palabras_clave": [
+        "astrid"
+      ],
+      "estilo_inferido": "Coloquial venezolano y cercano"
+    },
+    {
+      "timestamp": "2026-09-08T14:01:42.963148+00:00",
+      "usuario": "Administrador Principal",
+      "fuente": "escucha_pasiva",
+      "texto": "49 minutos",
+      "longitud": 10,
+      "palabras_clave": [
+        "minutos"
+      ],
+      "estilo_inferido": "Coloquial venezolano y cercano"
+    }
+  ],
+  "metricas": {
+    "total_interacciones": 12,
+    "vocabulario_distinto": 29,
+    "intenciones_detectadas": {}
+  },
+  "updated_at": "2026-09-08T14:01:42.963438+00:00"
+}

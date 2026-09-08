@@ -257,6 +257,17 @@ def login():
                         session["user_rol"] = user.get("rol", "admin")
                         session["astrid_greet"] = True
                         session.permanent = True
+
+                        # Detectar si es el primer inicio de sesión del usuario
+                        is_primer_login = False
+                        try:
+                            chk_movs = supabase.table("historial_movimientos").select("id").eq("usuario_nombre", user["nombre"]).eq("accion", "LOGIN").execute()
+                            if not chk_movs.data or len(chk_movs.data) == 0:
+                                is_primer_login = True
+                        except Exception:
+                            pass
+                        session["es_primer_ingreso"] = is_primer_login
+
                         registrar_movimiento(user["nombre"], "LOGIN", "AUTH", f"Inicio de sesión exitoso ({email})")
                         flash(f"¡Bienvenido de nuevo, {user['nombre']}!", "success")
                         return redirect(url_for("main.dashboard"))
@@ -270,6 +281,7 @@ def login():
             session["user_email"] = email
             session["user_rol"] = "admin"
             session["astrid_greet"] = True
+            session["es_primer_ingreso"] = False
             registrar_movimiento("Administrador Principal", "LOGIN", "AUTH", f"Inicio de sesión demo ({email})")
             flash("Inicio de sesión exitoso en modo local (sin BD).", "success")
             return redirect(url_for("main.dashboard"))
@@ -316,6 +328,7 @@ def register():
                     session["user_email"] = u["email"]
                     session["user_rol"] = u.get("rol", "usuario")
                     session["astrid_greet"] = True
+                    session["es_primer_ingreso"] = True
 
                     registrar_movimiento(nombre, "REGISTRO_USUARIO", "AUTH", f"Nuevo usuario registrado en SIST-LQ: {nombre} ({email})")
                     flash(f"¡Cuenta creada con éxito! Bienvenido a SIST-LQ, {nombre}.", "success")
@@ -331,6 +344,7 @@ def register():
         session["user_email"] = email
         session["user_rol"] = rol
         session["astrid_greet"] = True
+        session["es_primer_ingreso"] = True
         registrar_movimiento(nombre, "REGISTRO_USUARIO", "AUTH", f"Nuevo usuario registrado localmente: {nombre}")
         flash(f"¡Cuenta creada con éxito! Bienvenido, {nombre}.", "success")
         return redirect(url_for("main.dashboard"))
@@ -1623,12 +1637,29 @@ def api_eliminar_usuario(user_id):
             supabase.table("usuarios").delete().eq("id", user_id).execute()
             usuario_actual = session.get("user_nombre", "Admin")
             registrar_movimiento(usuario_actual, "ELIMINAR_USUARIO", "SEGURIDAD", f"Usuario eliminado: {target_name} (ID {user_id})")
+
+            # Purgar audios en disco para asegurar que ningún saludo mencione al usuario eliminado
+            saludos_dir = os.path.join(current_app.root_path, "static", "audio", "saludos")
+            if os.path.exists(saludos_dir):
+                import glob
+                for old_f in glob.glob(os.path.join(saludos_dir, "*.mp3")):
+                    try: os.remove(old_f)
+                    except Exception: pass
+
             return jsonify({"success": True})
         except Exception as e:
             return jsonify({"success": False, "error": str(e)}), 500
     else:
         usuario_actual = session.get("user_nombre", "Admin")
         registrar_movimiento(usuario_actual, "ELIMINAR_USUARIO", "SEGURIDAD", f"Usuario eliminado (demo): ID {user_id}")
+
+        saludos_dir = os.path.join(current_app.root_path, "static", "audio", "saludos")
+        if os.path.exists(saludos_dir):
+            import glob
+            for old_f in glob.glob(os.path.join(saludos_dir, "*.mp3")):
+                try: os.remove(old_f)
+                except Exception: pass
+
         return jsonify({"success": True})
 
 import requests
@@ -1698,12 +1729,104 @@ def slugify_usuario(nombre):
     slug = re.sub(r'[^a-zA-Z0-9]+', '_', sin_tildes.strip().lower())
     return slug.strip('_') or "usuario"
 
-def obtener_momento_y_saludo(usuario, momento=None):
+def _filtrar_movimientos_notificaciones(movs, usuario_actual, active_users=None, leidas_set=None, max_horas=48):
+    """
+    Filtra movimientos para extraer notificaciones de negocio reales, no leídas y recientes:
+    - Excluye las acciones del propio usuario actual.
+    - Excluye acciones generadas por o referentes a usuarios eliminados (no en active_users).
+    - Excluye ruido operativo: inicios/cierres de sesión (LOGIN/LOGOUT/INICIALIZACION).
+    - Excluye eventos que superen la ventana de tiempo (por defecto 48h para historial visual, 24h para saludo por voz).
+    """
+    if leidas_set is None:
+        leidas_set = set()
+    usuario_clean = (usuario_actual or "").strip().lower()
+    now_utc = datetime.datetime.now(datetime.timezone.utc)
+    validos = []
+
+    for m in movs:
+        u_m = (m.get("usuario_nombre") or "").strip()
+        u_m_clean = u_m.lower()
+
+        # 1. No notificar sobre uno mismo
+        if u_m_clean and u_m_clean == usuario_clean:
+            continue
+
+        # 2. Si active_users está disponible, verificar que el autor siga siendo usuario activo
+        if active_users and u_m_clean and u_m_clean not in active_users:
+            continue
+
+        accion = (m.get("accion") or "").upper()
+        desc = m.get("descripcion", "")
+        desc_lower = desc.lower()
+
+        # 3. Excluir ruido de logins/logouts y sesiones rutinarias
+        if any(k in accion for k in ["LOGIN", "LOGOUT", "INICIALIZACION", "INICIO", "CIERRE"]):
+            continue
+        if any(k in desc_lower for k in ["inicio de sesión", "inicio de sesion", "cierre de sesión", "cierre de sesion", "inició sesión", "inició sesion", "cerró sesión"]):
+            continue
+
+        # 4. Si la acción es de usuario o seguridad, verificar que no mencione a un usuario eliminado
+        if "USUARIO" in accion or "SEGURIDAD" in accion:
+            if active_users:
+                # Si menciona a alguien y ninguno de los usuarios activos coincide con la mención
+                if not any(u in desc_lower for u in active_users) and any(w in desc_lower for w in ["nuevo usuario", "usuario creado", "usuario registrado", "usuario modificado"]):
+                    continue
+
+        # 5. Ventana de tiempo (últimas max_horas)
+        c_at = m.get("created_at")
+        if c_at and max_horas:
+            try:
+                iso_str = str(c_at).strip().replace("Z", "+00:00")
+                dt = datetime.datetime.fromisoformat(iso_str)
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=datetime.timezone.utc)
+                if (now_utc - dt).total_seconds() > (max_horas * 3600):
+                    continue
+            except Exception:
+                pass
+
+        m_id = str(m.get("id") or f"{accion}_{m.get('created_at')}")
+        es_leida = m_id in leidas_set
+
+        validos.append({
+            "id": m_id,
+            "raw": m,
+            "usuario": u_m,
+            "accion": accion,
+            "descripcion": desc,
+            "created_at": c_at or "",
+            "leida": es_leida
+        })
+
+    return validos
+
+
+def obtener_momento_y_saludo(usuario, momento=None, es_primer_ingreso=None):
     """
     Calcula el saludo según la hora oficial de Venezuela (UTC-4) o un momento forzado ('manana', 'tarde', 'noche').
-    Incluye dinámicamente el conteo y resumen de notificaciones de actividad generadas por otros usuarios.
+    - Si es el primer ingreso del usuario: entrega bienvenida especial inductiva sobre Astrid y el sistema SIST-LQ.
+    - Si es usuario recurrente: saluda según el momento del día y lee en voz alta detalladamente las notificaciones pendientes reales de las últimas 24h, finalizando con: '¿Qué tal? ¿Cómo te encuentras el día de hoy?'
     Retorna: (momento_slug, texto_saludo, total_notificaciones)
     """
+    if es_primer_ingreso is None:
+        try:
+            es_primer_ingreso = session.get("es_primer_ingreso", False)
+        except Exception:
+            es_primer_ingreso = False
+
+    if es_primer_ingreso:
+        texto_saludo = (
+            f"¡Bienvenido, {usuario}! Gracias por registrarte. Mi nombre es Astrid, tu asistente de inteligencia artificial "
+            f"y cerebro analítico del sistema SIST-LQ. Me encargo de ayudarte con las órdenes de compra, control de presupuestos, "
+            f"cotizaciones a tasa oficial BCV y reportes ejecutivos. ¿En qué puedo ayudarte hoy?"
+        )
+        try:
+            if "es_primer_ingreso" in session:
+                session["es_primer_ingreso"] = False
+        except Exception:
+            pass
+        return momento or "manana", texto_saludo, 0
+
     if not momento:
         utc_now = datetime.datetime.now(datetime.timezone.utc)
         hora_ve = (utc_now - datetime.timedelta(hours=4)).hour
@@ -1721,51 +1844,72 @@ def obtener_momento_y_saludo(usuario, momento=None):
     else:
         saludo_prefijo = "¡Buenas noches"
 
-    # Conteo de notificaciones de otros usuarios
     supabase = getattr(current_app, "supabase", None)
     usuario_clean = usuario.strip().lower() if usuario else ""
     total_notif = 0
     resumen_notif = ""
 
+    active_users = set()
+    try:
+        if supabase:
+            u_res = supabase.table("usuarios").select("nombre, email").execute()
+            if u_res.data:
+                for u in u_res.data:
+                    if u.get("nombre"): active_users.add(u["nombre"].strip().lower())
+                    if u.get("email"): active_users.add(u["email"].strip().lower())
+    except Exception:
+        pass
+
     try:
         movs = []
         if supabase:
-            r = supabase.table("historial_movimientos").select("*").order("created_at", desc=True).limit(25).execute()
+            r = supabase.table("historial_movimientos").select("*").order("created_at", desc=True).limit(30).execute()
             if r.data: movs = r.data
         else:
             movs = MOCK_MOVIMIENTOS
 
-        leidas = session.get("notificaciones_leidas", [])
-        no_leidas = [
-            m for m in movs
-            if m.get("usuario_nombre", "").strip().lower() != usuario_clean 
-            and str(m.get("id")) not in leidas
-        ]
+        leidas = set(str(x) for x in session.get("notificaciones_leidas", []))
+        # Para el saludo por voz: estrictamente eventos reales de negocio de las últimas 24h y no leídos
+        filtrados = _filtrar_movimientos_notificaciones(movs, usuario, active_users=active_users, leidas_set=leidas, max_horas=24)
+        no_leidas = [f for f in filtrados if not f["leida"]]
         total_notif = len(no_leidas)
-        if total_notif > 0:
-            primer = no_leidas[0]
-            u_otro = primer.get("usuario_nombre", "un usuario")
-            desc_corta = primer.get("descripcion", "")[:45]
-            resumen_notif = f" Tienes {total_notif} {'notificación pendiente' if total_notif == 1 else 'notificaciones pendientes'} en el sistema: {desc_corta}."
-        else:
-            resumen_notif = " No tienes notificaciones nuevas."
-    except Exception:
-        pass
 
-    texto_saludo = f"{saludo_prefijo}, {usuario}! Te doy la bienvenida al Facturador SIST-LQ.{resumen_notif} Sistemas operativos y listos para gestionar."
+        if total_notif > 0:
+            lista_notif_texto = []
+            for n in no_leidas[:3]:
+                u_ev = n.get("usuario") or "Un usuario"
+                desc_ev = n.get("descripcion") or n.get("accion") or ""
+                desc_ev = re.sub(r'\(.*?\)', '', desc_ev)
+                desc_ev = re.sub(r'\[.*?\]', '', desc_ev)
+                desc_ev = re.sub(r'ID\s+[a-f0-9\-]+', '', desc_ev, flags=re.IGNORECASE).strip()
+                if desc_ev:
+                    lista_notif_texto.append(f"{u_ev} {desc_ev.lower()}")
+
+            if lista_notif_texto:
+                resumen_notif = " Estas son las notificaciones pendientes: " + ", y ".join(lista_notif_texto) + "."
+            else:
+                resumen_notif = " Tienes notificaciones pendientes en el sistema."
+        else:
+            resumen_notif = " No tienes notificaciones pendientes."
+    except Exception:
+        resumen_notif = " No tienes notificaciones pendientes."
+
+    texto_saludo = f"{saludo_prefijo}, {usuario}!{resumen_notif} ¿Qué tal? ¿Cómo te encuentras el día de hoy?"
     return momento, texto_saludo, total_notif
 
-def asegurar_audio_bienvenida_local(usuario, momento=None):
+def asegurar_audio_bienvenida_local(usuario, momento=None, es_primer_ingreso=None):
     """
     Gestiona el audio de bienvenida resguardado físicamente en disco (static/audio/saludos/):
-    - Incluye en el nombre de archivo el momento y conteo de notificaciones para refrescar el audio si hay actividad nueva.
+    - Utiliza un hash del texto del saludo para garantizar que cualquier cambio en las notificaciones refresque de inmediato el audio y jamás reproduzca textos obsoletos.
     """
     import base64
+    import hashlib
 
     usuario = usuario.strip() if usuario else "Usuario"
-    momento_slug, texto_saludo, total_notif = obtener_momento_y_saludo(usuario, momento)
+    momento_slug, texto_saludo, total_notif = obtener_momento_y_saludo(usuario, momento, es_primer_ingreso=es_primer_ingreso)
     slug_user = slugify_usuario(usuario)
-    filename = f"{slug_user}_{momento_slug}_n{total_notif}.mp3"
+    texto_hash = hashlib.md5(texto_saludo.encode("utf-8")).hexdigest()[:8]
+    filename = f"{slug_user}_{momento_slug}_{texto_hash}.mp3"
 
     saludos_dir = os.path.join(current_app.root_path, "static", "audio", "saludos")
     os.makedirs(saludos_dir, exist_ok=True)
@@ -1800,6 +1944,14 @@ def asegurar_audio_bienvenida_local(usuario, momento=None):
 
     if audio_bytes and len(audio_bytes) > 1024:
         try:
+            # Eliminar audios antiguos del mismo usuario para evitar acumulación
+            import glob
+            for old_f in glob.glob(os.path.join(saludos_dir, f"{slug_user}_*.mp3")):
+                try:
+                    if old_f != filepath: os.remove(old_f)
+                except Exception:
+                    pass
+
             with open(filepath, "wb") as f:
                 f.write(audio_bytes)
             audio_b64 = base64.b64encode(audio_bytes).decode("utf-8")
@@ -1857,6 +2009,17 @@ def api_listar_notificaciones():
     usuario_actual = session.get("user_nombre", "Loreidy")
     supabase = getattr(current_app, "supabase", None)
 
+    active_users = set()
+    if supabase:
+        try:
+            u_res = supabase.table("usuarios").select("nombre, email").execute()
+            if u_res.data:
+                for u in u_res.data:
+                    if u.get("nombre"): active_users.add(u["nombre"].strip().lower())
+                    if u.get("email"): active_users.add(u["email"].strip().lower())
+        except Exception:
+            pass
+
     movs = []
     if supabase:
         try:
@@ -1868,23 +2031,16 @@ def api_listar_notificaciones():
     else:
         movs = MOCK_MOVIMIENTOS
 
-    notificaciones = []
     leidas = set(str(x) for x in session.get("notificaciones_leidas", []))
+    filtrados = _filtrar_movimientos_notificaciones(movs, usuario_actual, active_users=active_users, leidas_set=leidas, max_horas=48)
 
-    for m in movs:
-        u_nombre = m.get("usuario_nombre", "")
-        # Filtro: Solo actividades de otros usuarios (a excepción de las mías)
-        if u_nombre and u_nombre.strip().lower() == usuario_actual.strip().lower():
-            continue
-
-        accion = (m.get("accion") or "").upper()
-        desc = m.get("descripcion", "")
-
-        # FILTRO DE RUIDO: Omitir logins/logouts e inicios/cierres de sesión rutinarios
-        if any(k in accion for k in ["LOGIN", "LOGOUT", "INICIALIZACION"]) or any(k in desc.lower() for k in ["inicio de sesión", "inicio de sesion", "cierre de sesión", "cierre de sesion"]):
-            continue
-
-        m_id = str(m.get("id") or f"{accion}_{m.get('created_at')}")
+    notificaciones = []
+    for item in filtrados:
+        m = item["raw"]
+        accion = item["accion"]
+        u_nombre = item["usuario"]
+        desc = item["descripcion"]
+        m_id = item["id"]
 
         icono = "bi-bell-fill"
         color_bg = "bg-brand-50 text-brand-700"
@@ -1917,10 +2073,10 @@ def api_listar_notificaciones():
             "titulo": titulo,
             "mensaje": desc,
             "usuario": u_nombre,
-            "created_at": m.get("created_at", ""),
+            "created_at": item["created_at"],
             "icono": icono,
             "color_bg": color_bg,
-            "leida": m_id in leidas
+            "leida": item["leida"]
         })
 
     no_leidas = [n for n in notificaciones if not n["leida"]]
@@ -1960,6 +2116,276 @@ def api_marcar_notificaciones_leidas():
     session.modified = True
     return jsonify({"success": True, "total_leidas": len(todas_leidas)})
 
+
+# -----------------------------------------------------------------------------
+# CENTRO DE ANALÍTICA, INTELIGENCIA DE NEGOCIOS Y ESTADÍSTICAS
+# -----------------------------------------------------------------------------
+def _filtrar_ordenes_analitica(ordenes, periodo=None, desde=None, hasta=None, proveedor=None, proyecto=None):
+    """
+    Filtra órdenes de compra de forma multidimensional para analítica y reportes:
+    - periodo: 'hoy', 'semana', 'mes', '30d', 'anio', 'todo'
+    - desde: YYYY-MM-DD
+    - hasta: YYYY-MM-DD
+    - proveedor: coincidencia de razón social
+    - proyecto: coincidencia de nombre de proyecto
+    """
+    now_ve = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(hours=4)
+    hoy_str = now_ve.strftime("%Y-%m-%d")
+
+    # Si se especificó un período rápido y no hay 'desde'/'hasta' manuales
+    if periodo and not desde and not hasta:
+        p_clean = periodo.lower().strip()
+        if p_clean == "hoy":
+            desde = hoy_str
+            hasta = hoy_str
+        elif p_clean == "semana":
+            desde = (now_ve - datetime.timedelta(days=7)).strftime("%Y-%m-%d")
+            hasta = hoy_str
+        elif p_clean == "mes":
+            desde = now_ve.strftime("%Y-%m-01")
+            hasta = hoy_str
+        elif p_clean in ["30d", "30_dias"]:
+            desde = (now_ve - datetime.timedelta(days=30)).strftime("%Y-%m-%d")
+            hasta = hoy_str
+        elif p_clean in ["anio", "año"]:
+            desde = now_ve.strftime("%Y-01-01")
+            hasta = hoy_str
+
+    filtradas = []
+    for o in ordenes:
+        if str(o.get("estado", "")).lower() == "anulada":
+            continue
+
+        fecha_o = str(o.get("fecha_emision") or "")[:10].strip()
+
+        # Filtro de fecha desde
+        if desde and fecha_o and fecha_o < desde:
+            continue
+
+        # Filtro de fecha hasta
+        if hasta and fecha_o and fecha_o > hasta:
+            continue
+
+        # Filtro de proveedor
+        if proveedor and proveedor.upper() != "TODOS" and proveedor.strip() != "":
+            p_ord = (o.get("proveedor_razon_social") or "").strip().lower()
+            if proveedor.strip().lower() not in p_ord:
+                continue
+
+        # Filtro de proyecto
+        if proyecto and proyecto.upper() != "TODOS" and proyecto.strip() != "":
+            p_info = o.get("proyectos")
+            p_nom = (p_info.get("nombre") if isinstance(p_info, dict) else (o.get("proyecto_nombre") or "")).strip().lower()
+            if proyecto.strip().lower() not in p_nom:
+                continue
+
+        filtradas.append(o)
+
+    return filtradas
+
+
+@bp.route("/api/analitica/datos", methods=["GET"])
+def api_analitica_datos():
+    if "user_id" not in session:
+        return jsonify({"success": False, "error": "No autorizado"}), 401
+
+    supabase = getattr(current_app, "supabase", None)
+    ordenes = []
+    items_cat = []
+    proyectos = []
+    proveedores = []
+
+    if supabase:
+        try:
+            r_ord = supabase.table("ordenes_compra").select("*, proyectos(nombre, codigo)").order("fecha_emision", desc=True).execute()
+            if r_ord.data: ordenes = r_ord.data
+            r_prv = supabase.table("proveedores").select("*").execute()
+            if r_prv.data: proveedores = r_prv.data
+            r_pry = supabase.table("proyectos").select("*").execute()
+            if r_pry.data: proyectos = r_pry.data
+            r_itm = supabase.table("items_catalogo").select("*").execute()
+            if r_itm.data: items_cat = r_itm.data
+        except Exception as e:
+            current_app.logger.warning(f"Error cargando analítica: {e}")
+            ordenes = MOCK_ORDENES
+            proveedores = MOCK_PROVEEDORES
+            proyectos = MOCK_PROYECTOS
+            items_cat = MOCK_ITEMS
+    else:
+        ordenes = MOCK_ORDENES
+        proveedores = MOCK_PROVEEDORES
+        proyectos = MOCK_PROYECTOS
+        items_cat = MOCK_ITEMS
+
+    # Opciones de filtros disponibles para la interfaz de usuario
+    todos_proveedores = sorted(list(set(
+        (o.get("proveedor_razon_social") or "").strip()
+        for o in ordenes if (o.get("proveedor_razon_social") or "").strip()
+    )))
+    todos_proyectos = sorted(list(set(
+        ((o.get("proyectos", {}).get("nombre") if isinstance(o.get("proyectos"), dict) else o.get("proyecto_nombre")) or "").strip()
+        for o in ordenes if ((o.get("proyectos", {}).get("nombre") if isinstance(o.get("proyectos"), dict) else o.get("proyecto_nombre")) or "").strip()
+    )))
+
+    # Leer parámetros de filtro
+    periodo = request.args.get("periodo")
+    desde = request.args.get("desde")
+    hasta = request.args.get("hasta")
+    proveedor_filtro = request.args.get("proveedor")
+    proyecto_filtro = request.args.get("proyecto")
+
+    ordenes_activas = _filtrar_ordenes_analitica(
+        ordenes,
+        periodo=periodo,
+        desde=desde,
+        hasta=hasta,
+        proveedor=proveedor_filtro,
+        proyecto=proyecto_filtro
+    )
+
+    total_usd = sum(float(o.get("total_usd") or 0) for o in ordenes_activas)
+    total_bs = sum(float(o.get("total_bs") or 0) for o in ordenes_activas)
+    total_ordenes = len(ordenes_activas)
+    ticket_promedio_usd = (total_usd / total_ordenes) if total_ordenes > 0 else 0
+
+    tasas = [float(o.get("tasa_bcv") or 0) for o in ordenes_activas if float(o.get("tasa_bcv") or 0) > 0]
+    tasa_promedio = (sum(tasas) / len(tasas)) if tasas else 800.0
+
+    # 1. Agrupación por Proveedor
+    gasto_prov = {}
+    for o in ordenes_activas:
+        p = (o.get("proveedor_razon_social") or "Sin Proveedor").strip()
+        gasto_prov[p] = gasto_prov.get(p, 0.0) + float(o.get("total_usd") or 0)
+
+    prov_sort = sorted(gasto_prov.items(), key=lambda x: x[1], reverse=True)
+    top_prov_nom = prov_sort[0][0] if prov_sort else "N/A"
+    top_prov_val = prov_sort[0][1] if prov_sort else 0
+    top_prov_pct = round((top_prov_val / total_usd * 100), 1) if total_usd > 0 else 0
+
+    prov_labels = [x[0] for x in prov_sort[:5]]
+    prov_valores = [round(x[1], 2) for x in prov_sort[:5]]
+    if len(prov_sort) > 5:
+        otros_prov = sum(x[1] for x in prov_sort[5:])
+        prov_labels.append("Otros Proveedores")
+        prov_valores.append(round(otros_prov, 2))
+
+    # 2. Agrupación por Proyecto
+    gasto_proy = {}
+    for o in ordenes_activas:
+        p_obj = o.get("proyectos")
+        p_nom = (p_obj.get("nombre") if isinstance(p_obj, dict) else (o.get("proyecto_nombre") or "General")).strip()
+        gasto_proy[p_nom] = gasto_proy.get(p_nom, 0.0) + float(o.get("total_usd") or 0)
+
+    proy_sort = sorted(gasto_proy.items(), key=lambda x: x[1], reverse=True)
+    top_proy_nom = proy_sort[0][0] if proy_sort else "N/A"
+    top_proy_val = proy_sort[0][1] if proy_sort else 0
+    top_proy_pct = round((top_proy_val / total_usd * 100), 1) if total_usd > 0 else 0
+
+    proy_labels = [x[0] for x in proy_sort[:6]]
+    proy_valores = [round(x[1], 2) for x in proy_sort[:6]]
+
+    # 3. Evolución Temporal (Agrupado por Mes)
+    from collections import defaultdict
+    meses_data = defaultdict(lambda: {"usd": 0.0, "bs": 0.0, "count": 0})
+    for o in ordenes_activas:
+        f_raw = str(o.get("fecha_emision") or "")[:7]
+        if not f_raw or len(f_raw) < 7:
+            f_raw = "2026-08"
+        meses_data[f_raw]["usd"] += float(o.get("total_usd") or 0)
+        meses_data[f_raw]["bs"] += float(o.get("total_bs") or 0)
+        meses_data[f_raw]["count"] += 1
+
+    meses_es = {
+        "01": "Ene", "02": "Feb", "03": "Mar", "04": "Abr",
+        "05": "May", "06": "Jun", "07": "Jul", "08": "Ago",
+        "09": "Sep", "10": "Oct", "11": "Nov", "12": "Dic"
+    }
+    orden_meses = sorted(meses_data.keys())
+    if len(orden_meses) == 1:
+        base = orden_meses[0]
+        try:
+            y, m = int(base.split("-")[0]), int(base.split("-")[1])
+            prev_m = f"{y:04d}-{m-1:02d}" if m > 1 else f"{y-1:04d}-12"
+            if prev_m not in meses_data:
+                meses_data[prev_m] = {"usd": 0.0, "bs": 0.0, "count": 0}
+            orden_meses = sorted(meses_data.keys())
+        except Exception:
+            pass
+
+    evol_labels = []
+    evol_usd = []
+    evol_bs = []
+    for k in orden_meses:
+        parts = k.split("-")
+        lbl = f"{meses_es.get(parts[1], parts[1])} {parts[0]}" if len(parts) == 2 else k
+        evol_labels.append(lbl)
+        evol_usd.append(round(meses_data[k]["usd"], 2))
+        evol_bs.append(round(meses_data[k]["bs"], 2))
+
+    # Proyección estadística
+    proyeccion_estimada = round(ticket_promedio_usd * (total_ordenes + 2), 2)
+
+    # 4. Top ítems más requeridos
+    item_counts = {}
+    for o in ordenes_activas:
+        for it in (o.get("items") or []):
+            d = (it.get("descripcion") or "Ítem").strip()
+            c = float(it.get("cantidad") or 1)
+            item_counts[d] = item_counts.get(d, 0) + c
+
+    if not item_counts and items_cat:
+        for it in items_cat[:5]:
+            item_counts[it.get("descripcion", "Ítem")] = 1
+
+    item_sort = sorted(item_counts.items(), key=lambda x: x[1], reverse=True)[:5]
+    item_labels = [x[0][:28] + ("..." if len(x[0]) > 28 else "") for x in item_sort]
+    item_valores = [round(x[1], 1) for x in item_sort]
+
+    return jsonify({
+        "success": True,
+        "kpis": {
+            "total_usd": round(total_usd, 2),
+            "total_bs": round(total_bs, 2),
+            "total_ordenes": total_ordenes,
+            "ticket_promedio_usd": round(ticket_promedio_usd, 2),
+            "tasa_promedio": round(tasa_promedio, 4),
+            "proyeccion_usd": proyeccion_estimada,
+            "top_proveedor": {
+                "nombre": top_prov_nom,
+                "monto": round(top_prov_val, 2),
+                "pct": top_prov_pct
+            },
+            "top_proyecto": {
+                "nombre": top_proy_nom,
+                "monto": round(top_proy_val, 2),
+                "pct": top_proy_pct
+            }
+        },
+        "graficas": {
+            "evolucion": {
+                "labels": evol_labels,
+                "usd": evol_usd,
+                "bs": evol_bs
+            },
+            "proveedores": {
+                "labels": prov_labels,
+                "valores": prov_valores
+            },
+            "proyectos": {
+                "labels": proy_labels,
+                "valores": proy_valores
+            },
+            "items": {
+                "labels": item_labels,
+                "valores": item_valores
+            }
+        },
+        "filtros_disponibles": {
+            "proveedores": todos_proveedores,
+            "proyectos": todos_proyectos
+        }
+    })
+
 def generar_audio_astrid(texto):
     """
     Genera voz para Astrid con Microsoft Edge Neural TTS (es-MX-DaliaNeural).
@@ -1989,8 +2415,11 @@ def astrid_bienvenida():
         
     usuario = request.args.get("usuario") or session.get("user_nombre", "Loreidy")
     momento = request.args.get("momento")
+    p_ingreso = request.args.get("primer_ingreso")
+    es_primer_ingreso = (p_ingreso in ["1", "true", "True"]) if p_ingreso is not None else session.get("es_primer_ingreso", False)
     
-    resultado = asegurar_audio_bienvenida_local(usuario, momento=momento)
+    resultado = asegurar_audio_bienvenida_local(usuario, momento=momento, es_primer_ingreso=es_primer_ingreso)
+    resultado["es_primer_ingreso"] = bool(es_primer_ingreso)
     return jsonify(resultado)
 
 
@@ -2004,14 +2433,16 @@ def detectar_y_ejecutar_accion_astrid(prompt_usuario, usuario="Loreidy"):
     - Registrar auditoría con cada acción realizada.
     """
     p_lower = prompt_usuario.lower()
-    palabras_accion = ["modifica", "modificar", "cambia", "cambiar", "actualiza", "actualizar", "crea", "crear", "agrega", "agregar", "ponle", "ajusta", "ajustar", "sube", "baja", "elimina", "borra"]
+    palabras_accion = [
+        "modifica", "modificar", "cambia", "cambiar", "actualiza", "actualizar",
+        "crea", "crear", "agrega", "agregar", "ponle", "ajusta", "ajustar",
+        "sube", "baja", "elimina", "eliminar", "borra", "borrar", "quita", "quitar", "remueve", "remover"
+    ]
     if not any(w in p_lower for w in palabras_accion):
         return None
 
     supabase = getattr(current_app, "supabase", None)
     openrouter_key = os.getenv("OPENROUTER_API_KEY")
-    if not openrouter_key:
-        return None
 
     sys_instr = """Eres un extractor de intenciones de modificación operativa para el sistema Facturador SIST-LQ.
 Analiza la solicitud del usuario y devuelve ÚNICAMENTE un objeto JSON válido (sin explicaciones ni texto adicional):
@@ -2023,38 +2454,42 @@ Opciones JSON posibles:
 2. Crear o agregar un nuevo ítem al catálogo:
 {"accion": "crear_item", "descripcion": "nombre del ítem", "unidad": "UND|Metros|Kilos|Litros", "precio": 10.0}
 
-3. Modificar datos de un proveedor (telefono, email, banco, num_cuenta, direccion):
+3. Eliminar o quitar un ítem del catálogo:
+{"accion": "eliminar_item", "item": "nombre del ítem"}
+
+4. Modificar datos de un proveedor (telefono, email, banco, num_cuenta, direccion):
 {"accion": "actualizar_proveedor", "proveedor": "nombre del proveedor", "campo": "telefono|email|banco|num_cuenta|direccion", "valor": "nuevo valor"}
 
-4. Modificar observaciones de una orden:
+5. Modificar observaciones de una orden:
 {"accion": "actualizar_orden_obs", "nro_orden": "000271", "observaciones": "nuevo texto"}
 
-5. Si es solo una pregunta informativa, consulta o solicitud de reporte:
+6. Si es solo una pregunta informativa, consulta o solicitud de reporte:
 {"accion": "ninguna"}"""
 
     parsed = None
-    try:
-        r = requests.post("https://openrouter.ai/api/v1/chat/completions", json={
-            "model": "minimax/minimax-m3:free",
-            "messages": [
-                {"role": "system", "content": sys_instr},
-                {"role": "user", "content": prompt_usuario}
-            ],
-            "temperature": 0.1,
-            "max_tokens": 150
-        }, headers={"Authorization": f"Bearer {openrouter_key}", "HTTP-Referer": "https://sis-fact-lq.onrender.com", "X-Title": "SIST-LQ"}, timeout=8)
-        
-        if r.status_code == 200:
-            res_txt = r.json()["choices"][0]["message"]["content"].strip()
-            match = re.search(r'\{.*\}', res_txt, re.DOTALL)
-            if match:
-                parsed = json.loads(match.group(0))
-    except Exception as e:
-        if current_app:
-            current_app.logger.warning(f"Error extrayendo acción Astrid: {e}")
+    if openrouter_key:
+        try:
+            r = requests.post("https://openrouter.ai/api/v1/chat/completions", json={
+                "model": "minimax/minimax-m3:free",
+                "messages": [
+                    {"role": "system", "content": sys_instr},
+                    {"role": "user", "content": prompt_usuario}
+                ],
+                "temperature": 0.1,
+                "max_tokens": 150
+            }, headers={"Authorization": f"Bearer {openrouter_key}", "HTTP-Referer": "https://sis-fact-lq.onrender.com", "X-Title": "SIST-LQ"}, timeout=8)
+            
+            if r.status_code == 200:
+                res_txt = r.json()["choices"][0]["message"]["content"].strip()
+                match = re.search(r'\{.*\}', res_txt, re.DOTALL)
+                if match:
+                    parsed = json.loads(match.group(0))
+        except Exception as e:
+            if current_app:
+                current_app.logger.warning(f"Error extrayendo acción Astrid: {e}")
 
     if not parsed or parsed.get("accion") == "ninguna":
-        # Heurística regex de alta precisión cuando la API externa está ocupada o sin cuota
+        # Heurística regex de alta precisión cuando la API externa está ocupada, sin cuota o en fallback local
         p_str = prompt_usuario.lower()
         m_precio = re.search(r'(?:modifica|cambia|actualiza|ponle|ajusta|sube|baja)\s+(?:el\s+)?precio\s+(?:de\s+)?(.+?)\s+(?:a|en)\s+\$?([0-9]+(?:\.[0-9]+)?)', p_str)
         if m_precio:
@@ -2072,11 +2507,22 @@ Opciones JSON posibles:
                     "unidad": "UND",
                     "precio": float(m_nuevo.group(2))
                 }
+            else:
+                m_eliminar = re.search(r'(?:elimina|eliminar|borra|borrar|quita|quitar|remueve|remover)\s+(?:del\s+cat[aá]logo\s+)?(?:el\s+)?(?:ítem|item|producto)?\s*["\']?([^"\']+)["\']?(?:\s+del\s+cat[aá]logo)?', p_str)
+                if m_eliminar:
+                    item_limpio = m_eliminar.group(1).strip()
+                    item_limpio = re.sub(r'\s+del\s+cat[aá]logo', '', item_limpio, flags=re.IGNORECASE).strip()
+                    if item_limpio:
+                        parsed = {
+                            "accion": "eliminar_item",
+                            "item": item_limpio
+                        }
 
     if not parsed or parsed.get("accion") == "ninguna":
         return None
 
     accion = parsed.get("accion")
+    global MOCK_ITEMS
 
     # 1. ACTUALIZAR PRECIO DE ÍTEM EN CATÁLOGO
     if accion == "actualizar_precio_item":
@@ -2086,6 +2532,7 @@ Opciones JSON posibles:
         except (ValueError, TypeError):
             nuevo_precio = 0.0
 
+        item_encontrado_desc = None
         if supabase and item_buscado:
             try:
                 r_item = supabase.table("items_catalogo").select("*").ilike("descripcion", f"%{item_buscado}%").limit(1).execute()
@@ -2098,17 +2545,28 @@ Opciones JSON posibles:
                 if r_item.data:
                     item_obj = r_item.data[0]
                     supabase.table("items_catalogo").update({"precio_referencial_usd": nuevo_precio}).eq("id", item_obj["id"]).execute()
-                    desc = f"Astrid IA actualizó el precio referencial de '{item_obj['descripcion']}' a ${nuevo_precio:.2f} USD"
-                    registrar_movimiento(usuario, "EDITAR_ITEM_ASTRID", "CATALOGO", desc)
-                    return {
-                        "ejecutada": True,
-                        "tipo": "actualizar_precio_item",
-                        "mensaje": f"Se actualizó con éxito el precio del ítem '{item_obj['descripcion']}' en el catálogo a ${nuevo_precio:,.2f} USD.",
-                        "item": item_obj["descripcion"],
-                        "nuevo_precio_usd": nuevo_precio
-                    }
+                    item_encontrado_desc = item_obj["descripcion"]
             except Exception as e:
                 if current_app: current_app.logger.error(f"Error actualizando precio item Astrid: {e}")
+
+        # Sincronización en memoria MOCK_ITEMS si aplica
+        if not item_encontrado_desc and item_buscado:
+            for it in MOCK_ITEMS:
+                if item_buscado.lower() in it.get("descripcion", "").lower():
+                    it["precio_referencial_usd"] = nuevo_precio
+                    item_encontrado_desc = it.get("descripcion")
+                    break
+
+        if item_encontrado_desc:
+            desc = f"Astrid IA actualizó el precio referencial de '{item_encontrado_desc}' a ${nuevo_precio:.2f} USD"
+            registrar_movimiento(usuario, "EDITAR_ITEM_ASTRID", "CATALOGO", desc)
+            return {
+                "ejecutada": True,
+                "tipo": "actualizar_precio_item",
+                "mensaje": f"Se actualizó con éxito el precio del ítem '{item_encontrado_desc}' en el catálogo a ${nuevo_precio:,.2f} USD.",
+                "item": item_encontrado_desc,
+                "nuevo_precio_usd": nuevo_precio
+            }
 
     # 2. CREAR NUEVO ÍTEM EN CATÁLOGO
     elif accion == "crear_item":
@@ -2119,6 +2577,7 @@ Opciones JSON posibles:
         except (ValueError, TypeError):
             precio = 0.0
 
+        item_creado = False
         if supabase and descripcion:
             try:
                 new_item = {
@@ -2128,19 +2587,79 @@ Opciones JSON posibles:
                 }
                 res = supabase.table("items_catalogo").insert(new_item).execute()
                 if res.data:
-                    desc = f"Astrid IA registró el nuevo ítem de catálogo '{descripcion}' ({unidad}) a ${precio:.2f} USD"
-                    registrar_movimiento(usuario, "CREAR_ITEM_ASTRID", "CATALOGO", desc)
-                    return {
-                        "ejecutada": True,
-                        "tipo": "crear_item",
-                        "mensaje": f"Se creó exitosamente en el catálogo el ítem '{descripcion}' ({unidad}) con precio referencial de ${precio:,.2f} USD.",
-                        "item": descripcion,
-                        "precio_usd": precio
-                    }
+                    item_creado = True
             except Exception as e:
                 if current_app: current_app.logger.error(f"Error creando item Astrid: {e}")
 
-    # 3. ACTUALIZAR DATOS DE PROVEEDOR
+        if not item_creado and descripcion:
+            new_id = max([int(x.get("id", 0)) for x in MOCK_ITEMS] or [0]) + 1
+            MOCK_ITEMS.append({
+                "id": new_id,
+                "descripcion": descripcion,
+                "unidad": unidad,
+                "precio_referencial_usd": precio
+            })
+            item_creado = True
+
+        if item_creado:
+            desc = f"Astrid IA registró el nuevo ítem de catálogo '{descripcion}' ({unidad}) a ${precio:.2f} USD"
+            registrar_movimiento(usuario, "CREAR_ITEM_ASTRID", "CATALOGO", desc)
+            return {
+                "ejecutada": True,
+                "tipo": "crear_item",
+                "mensaje": f"Se creó exitosamente en el catálogo el ítem '{descripcion}' ({unidad}) con precio referencial de ${precio:,.2f} USD.",
+                "item": descripcion,
+                "precio_usd": precio
+            }
+
+    # 3. ELIMINAR ÍTEM DEL CATÁLOGO (Agregar o Quitar)
+    elif accion == "eliminar_item":
+        item_buscado = parsed.get("item", "").strip()
+        item_buscado = re.sub(r'\s+del\s+cat[aá]logo', '', item_buscado, flags=re.IGNORECASE).strip()
+        eliminado_nombre = None
+
+        if supabase and item_buscado:
+            try:
+                r_item = supabase.table("items_catalogo").select("*").ilike("descripcion", f"%{item_buscado}%").limit(1).execute()
+                if not r_item.data:
+                    palabras = [w for w in item_buscado.split() if len(w) > 3]
+                    for pal in palabras:
+                        r_item = supabase.table("items_catalogo").select("*").ilike("descripcion", f"%{pal}%").limit(1).execute()
+                        if r_item.data: break
+
+                if r_item.data:
+                    item_obj = r_item.data[0]
+                    supabase.table("items_catalogo").delete().eq("id", item_obj["id"]).execute()
+                    eliminado_nombre = item_obj["descripcion"]
+            except Exception as e:
+                if current_app: current_app.logger.error(f"Error eliminando item Astrid Supabase: {e}")
+
+        # Sincronizar en memoria MOCK_ITEMS
+        if item_buscado:
+            for idx, it in enumerate(list(MOCK_ITEMS)):
+                if item_buscado.lower() in it.get("descripcion", "").lower():
+                    if not eliminado_nombre:
+                        eliminado_nombre = it.get("descripcion")
+                    MOCK_ITEMS.pop(idx)
+                    break
+
+        if eliminado_nombre:
+            desc = f"Astrid IA eliminó el ítem '{eliminado_nombre}' del catálogo"
+            registrar_movimiento(usuario, "ELIMINAR_ITEM_ASTRID", "CATALOGO", desc)
+            return {
+                "ejecutada": True,
+                "tipo": "eliminar_item",
+                "mensaje": f"Se eliminó exitosamente el ítem '{eliminado_nombre}' del catálogo general.",
+                "item": eliminado_nombre
+            }
+        else:
+            return {
+                "ejecutada": False,
+                "tipo": "eliminar_item",
+                "mensaje": f"No se encontró en el catálogo ningún ítem que coincida con '{item_buscado}' para eliminar."
+            }
+
+    # 4. ACTUALIZAR DATOS DE PROVEEDOR
     elif accion == "actualizar_proveedor":
         prov_nombre = parsed.get("proveedor", "").strip()
         campo = parsed.get("campo", "").strip().lower()
@@ -2389,16 +2908,32 @@ def consultar_ia_astrid(prompt_usuario, usuario="Loreidy", historial=None):
     # Enlaces oficiales para reportes
     texto_reportes = (
         "ENLACES OFICIALES PARA DESCARGA DE REPORTES EN EXCEL (.XLSX):\n"
+        "- Reporte Analítico Integral con Gráficas Nativas: [📊 Descargar Reporte Analítico (.xlsx)](/api/exportar/reporte-analitico)\n"
         "- Órdenes de Compra: [📥 Descargar Reporte de Órdenes (.xlsx)](/api/exportar/ordenes)\n"
-        "- Directorio de Proveedores: [📥 Descargar Directorio de Proveedores (.xlsx)](/api/exportar/proveedores)\n"
         "- Auditoría y Trazabilidad: [📥 Descargar Reporte de Auditoría (.xlsx)](/api/exportar/auditoria)\n"
         "- Plantilla de Proveedores: [📥 Descargar Plantilla Proveedores (.xlsx)](/api/plantilla/proveedores)"
     )
+
+    perfil_usr = obtener_perfil_usuario_astrid(usuario)
+    texto_perfil = ""
+    if perfil_usr:
+        top_voc = ", ".join(list(perfil_usr.get("vocabulario_frecuente", {}).keys())[:8])
+        top_temas = ", ".join(list(perfil_usr.get("temas_frecuentes", {}).keys())[:4])
+        texto_perfil = (
+            f"--- PERFIL APRENDIDO DEL USUARIO (ENTRENAMIENTO CONTINUO EN DATA JSON) ---\n"
+            f"- Usuario identificado: {usuario} ({perfil_usr.get('rol', 'Usuario')})\n"
+            f"- Estilo conversacional detectado: {perfil_usr.get('estilo_comunicacion', 'Ejecutivo y directo')}\n"
+            f"- Temas de interés frecuente: {top_temas or 'General'}\n"
+            f"- Vocabulario habitual: {top_voc or 'Estándar'}\n"
+            f"- Interacciones previas registradas: {perfil_usr.get('total_interacciones', 1)}\n"
+            f"- INSTRUCCIÓN ADAPTATIVA: Habla con familiaridad, calidez y precisión, adaptando tu tono y respuestas al estilo y vocabulario con el que este usuario se comunica habitualmente.\n\n"
+        )
 
     sys_prompt = (
         f"Eres Astrid, la inteligencia artificial integral y cerebro analítico del sistema Facturador SIST-LQ.\n"
         f"El usuario que te consulta en este momento es: {usuario}.\n"
         f"TIENES ACCESO TOTAL Y PERMISOS DE MODIFICACIÓN EN TODA LA BASE DE DATOS DEL SISTEMA (precios, costos, catálogo, órdenes, proveedores, auditoría, usuarios y reportes).\n\n"
+        f"{texto_perfil}"
         f"{texto_accion}"
         f"--- DATOS VIVOS DEL SISTEMA EN TIEMPO REAL ---\n"
         f"1. TASAS OFICIALES BCV EN VIVO: USD = ${tasa:,.2f} Bs | EUR = €{tasa_eur:,.2f} Bs | PROMEDIO = ${tasa_prom:,.2f} Bs\n\n"
@@ -2417,8 +2952,8 @@ def consultar_ia_astrid(prompt_usuario, usuario="Loreidy", historial=None):
         f"4. Mantén la continuidad de la conversación (memoria multiturno). Si el usuario hace una pregunta de seguimiento breve como 'y a tasa promedio?', 'y en euros?', 'y quién la emitió?', responde sobre el mismo ítem u orden que se venía discutiendo en los turnos anteriores.\n"
         f"5. Si el usuario te pregunta por la última interacción, actividad o movimiento de algún usuario (ej. Loreidy Quiñonez, Ramón Rivas, Administrador):\n"
         f"   Revisa la sección de AUDITORÍA y responde con la fecha, hora exacta y qué acción realizó.\n"
-        f"6. Si el usuario te pide un reporte o informe (de órdenes, gastos, proveedores o auditoría):\n"
-        f"   Genera el resumen estructurado en tu respuesta y proporciona el enlace de descarga directa en Excel usando exactamente el formato Markdown: [📥 Descargar Reporte (.xlsx)](/api/exportar/...).\n"
+        f"6. Si el usuario te pide un reporte, informe, estadísticas o análisis profundo (ej. 'estadísticas', 'análisis profundo', 'jarvis', 'excel con gráficas'):\n"
+        f"   Genera un diagnóstico ejecutivo integral bimonetario (USD/Bs a tasa BCV), ticket promedio, concentración Pareto de proveedores, ejecución por proyecto, y entrega SIEMPRE el enlace: [📊 Descargar Reporte Analítico Integral con Gráficas Nativas (.xlsx)](/api/exportar/reporte-analitico).\n"
         f"7. NUNCA muestres tu proceso de razonamiento interno (<think>, etc.)."
     )
 
@@ -2529,15 +3064,44 @@ def _responder_con_datos_locales_astrid(prompt_usuario, ctx, accion_res, usuario
     ords = ctx.get("ordenes_recientes", [])
     movs = ctx.get("movimientos_recientes", [])
 
-    # 1. Si se ejecutó una acción operativa en base de datos:
-    if accion_res and accion_res.get("ejecutada"):
-        return (
-            f"✅ **Operación ejecutada con éxito en la base de datos:**\n"
-            f"{accion_res.get('mensaje')}\n\n"
-            f"Los datos han sido actualizados en tiempo real y el movimiento quedó asentado en la auditoría del sistema."
-        )
+    # 1. Si se procesó una acción operativa en base de datos:
+    if accion_res:
+        if accion_res.get("ejecutada"):
+            return (
+                f"✅ **Operación ejecutada con éxito en la base de datos:**\n"
+                f"{accion_res.get('mensaje')}\n\n"
+                f"Los datos han sido actualizados en tiempo real y el movimiento quedó asentado en la auditoría del sistema."
+            )
+        else:
+            return (
+                f"ℹ️ **Información del Catálogo:**\n"
+                f"{accion_res.get('mensaje')}\n\n"
+                f"Puedes consultar los ítems disponibles actualmente solicitándome: *'Astrid, muéstrame los precios del catálogo'*."
+            )
 
-    # 2. Saludos de cortesía
+    # 2. Respuestas de estado de ánimo / Interacción tras el saludo ("me encuentro excelente", "muy bien", "estoy bien")
+    frases_animo = [
+        "me encuentro excelente", "excelente", "muy bien", "estoy bien", "estoy muy bien",
+        "me siento bien", "todo fino", "todo bien", "bien gracias", "bien y tu", "bien y tú",
+        "bien astrid", "excelente astrid", "genial", "de maravilla", "maravilla"
+    ]
+    if (any(f in p_lower for f in frases_animo) and len(p_lower.split()) <= 7) or p_lower in ["bien", "muy bien", "excelente", "excelente astrid"]:
+        resp_animo = (
+            f"¡Qué bueno! Me alegra mucho saber que te encuentras muy bien hoy, {usuario}.\n\n"
+            f"Estoy 100% activa y lista para asistirte con el catálogo de precios, órdenes de compra, "
+            f"proveedores o reportes ejecutivos con gráficas. ¿Qué deseas consultar o gestionar hoy?"
+        )
+        guardar_en_memoria_astrid(prompt_usuario, resp_animo, usuario)
+    # 2.5 Detección de Wake Word ('Astrid') solo o activación por voz directa
+    wake_words_solos = ["astrid", "ástrid", "oye astrid", "hey astrid", "astrid estas ahi", "astrid estás ahí", "astrid te escucho", "astrid dime", "astrid estas activa", "astrid estás activa"]
+    if p_lower in wake_words_solos or p_lower == "astrid":
+        resp_wake = (
+            f"¡Dime, {usuario}! Te escucho atentamente. ¿Qué deseas consultar o gestionar hoy?"
+        )
+        guardar_en_memoria_astrid(prompt_usuario, resp_wake, usuario)
+        return resp_wake
+
+    # 3. Saludos de cortesía
     saludos_exactos = ["hola", "buen dia", "buenos dias", "buen día", "buenos días", "buenas tardes", "buenas noches", "saludos", "que tal", "qué tal", "hey", "hola astrid", "como estas", "cómo estás"]
     if p_lower in saludos_exactos or p_lower.startswith("hola astrid"):
         return (
@@ -2546,8 +3110,8 @@ def _responder_con_datos_locales_astrid(prompt_usuario, ctx, accion_res, usuario
             f"¿Qué deseas consultar o gestionar hoy?"
         )
 
-    # 3. Cortesías de cierre / conformidad ("gracias", "ok", "perfecto")
-    if any(k == p_lower or p_lower.startswith(k + " ") for k in ["gracias", "muchas gracias", "agradecido", "agradecida", "perfecto", "excelente", "entendido", "ok", "listo"]):
+    # 4. Cortesías de cierre / conformidad ("gracias", "ok", "perfecto")
+    if any(k == p_lower or p_lower.startswith(k + " ") for k in ["gracias", "muchas gracias", "agradecido", "agradecida", "perfecto", "entendido", "ok", "listo"]):
         return (
             f"¡Con mucho gusto, {usuario}! Quedo a tu disposición para cualquier consulta contable, modificación de precios, órdenes de compra o reportes ejecutivos. ¡Éxito en tu jornada!"
         )
@@ -2684,7 +3248,80 @@ def _responder_con_datos_locales_astrid(prompt_usuario, ctx, accion_res, usuario
             f"*(Puedes descargar el directorio completo en Excel: [📥 Descargar Directorio (.xlsx)](/api/exportar/proveedores))*"
         )
 
-    # 8. REPORTES CON GRÁFICAS (Chart.js)
+    # 8. DEEP BUSINESS INTELLIGENCE & ESTADÍSTICAS AVANZADAS (MODO JARVIS)
+    es_analitica_profunda = any(k in p_lower for k in [
+        "estadistica", "estadística", "estadisticas", "estadísticas", 
+        "analisis profundo", "análisis profundo", "jarvis", "kpi", "kpis", 
+        "metrica", "métricas", "metricas", "reporte analitico", "reporte analítico", 
+        "excel con grafica", "excel con gráfica", "excel con graficas", "excel con gráficas", 
+        "inteligencia de negocio", "inteligencia de negocios"
+    ]) or (any(k in p_lower for k in ["analisis", "análisis"]) and not prov_mencionado and not item_mencionado)
+
+    if es_analitica_profunda:
+        tot_usd = float(ctx.get("total_usd") or sum(o.get("total_usd", 0) for o in ords))
+        tot_bs = float(ctx.get("total_bs") or sum(o.get("total_bs", 0) for o in ords))
+        tot_ord = int(ctx.get("total_ordenes") or len(ords))
+        ticket_prom = (tot_usd / tot_ord) if tot_ord > 0 else 0.0
+
+        # Análisis de Proveedores (Pareto)
+        gastos_prov = {}
+        for o in ords:
+            nom_p = o.get("proveedor") or "Proveedor"
+            gastos_prov[nom_p] = gastos_prov.get(nom_p, 0.0) + float(o.get("total_usd") or 0)
+        prov_sorted = sorted(gastos_prov.items(), key=lambda x: x[1], reverse=True)
+        top_prov_nom = prov_sorted[0][0] if prov_sorted else "N/A"
+        top_prov_val = prov_sorted[0][1] if prov_sorted else 0.0
+        top_prov_pct = round((top_prov_val / tot_usd * 100), 1) if tot_usd > 0 else 0.0
+
+        # Análisis de Proyectos
+        gastos_proy = {}
+        for o in ords:
+            nom_pr = o.get("proyecto") or "General"
+            gastos_proy[nom_pr] = gastos_proy.get(nom_pr, 0.0) + float(o.get("total_usd") or 0)
+        proy_sorted = sorted(gastos_proy.items(), key=lambda x: x[1], reverse=True)
+        top_proy_nom = proy_sorted[0][0] if proy_sorted else "N/A"
+        top_proy_val = proy_sorted[0][1] if proy_sorted else 0.0
+        top_proy_pct = round((top_proy_val / tot_usd * 100), 1) if tot_usd > 0 else 0.0
+
+        # Proyección estimada / Run-rate
+        proy_mensual_estimada = round(tot_usd * 1.15, 2)
+
+        # Generar Widget Chart.js interactivo para la respuesta
+        chart_labels = [x[0] for x in prov_sorted[:5]] or ["Sin datos"]
+        chart_data = [round(x[1], 2) for x in prov_sorted[:5]] or [0]
+        chart_cfg = {
+            "type": "doughnut",
+            "title": "Concentración de Compras por Proveedor (USD)",
+            "labels": chart_labels,
+            "data": chart_data
+        }
+        chart_json = json.dumps(chart_cfg)
+
+        lineas_top_p = [f"  • **{nom}**: ${val:,.2f} USD ({round((val/tot_usd)*100, 1) if tot_usd else 0}%)" for nom, val in prov_sorted[:4]]
+        lineas_top_pr = [f"  • **{nom}**: ${val:,.2f} USD ({round((val/tot_usd)*100, 1) if tot_usd else 0}%)" for nom, val in proy_sorted[:3]]
+
+        return (
+            f"🧠 **Diagnóstico Ejecutivo & Business Intelligence (Modo JARVIS)**\n\n"
+            f"Hola {usuario}. He procesado la analítica multidimensional con acceso en tiempo real a la base de datos:\n\n"
+            f"📊 **Indicadores Clave de Desempeño (KPIs):**\n"
+            f"• **Volumen Facturado Consolidado:** **${tot_usd:,.2f} USD** *(Equivalente oficial: **Bs. {tot_bs:,.2f}** a tasa BCV ${tasa_usd:,.2f} Bs/USD)*\n"
+            f"• **Órdenes Emitidas:** **{tot_ord}** adquisiciones registradas de forma inmutable.\n"
+            f"• **Ticket Promedio:** **${ticket_prom:,.2f} USD** por orden.\n"
+            f"• **Tasa Oficial BCV:** ${tasa_usd:,.2f} Bs/USD | **Tasa Promedio:** ${tasa_prom:,.2f} Bs/USD.\n"
+            f"• **Run-Rate Estimado (Mensual):** **${proy_mensual_estimada:,.2f} USD** en proyección de gasto.\n\n"
+            f":::chart {chart_json}:::\n\n"
+            f"🏢 **Concentración de Proveedores (Pareto):**\n"
+            f"El proveedor líder es **{top_prov_nom}** con adjudicaciones por **${top_prov_val:,.2f} USD** ({top_prov_pct}% del volumen global):\n"
+            + ("\n".join(lineas_top_p) if lineas_top_p else "  • Sin proveedores registrados") + "\n\n"
+            f"🏗️ **Ejecución Presupuestaria por Proyecto:**\n"
+            f"El proyecto con mayor asignación es **{top_proy_nom}** con **${top_proy_val:,.2f} USD** ({top_proy_pct}% del gasto total):\n"
+            + ("\n".join(lineas_top_pr) if lineas_top_pr else "  • Sin proyectos registrados") + "\n\n"
+            f"📥 **Descarga Ejecutiva de Reportes con Gráficas:**\n"
+            f"• [📊 Descargar Reporte Analítico Integral con Gráficas Nativas (.xlsx)](/api/exportar/reporte-analitico)\n"
+            f"• [📥 Descargar Base Completa de Órdenes (.xlsx)](/api/exportar/ordenes)"
+        )
+
+    # 9. REPORTES CON GRÁFICAS (Chart.js)
     peticion_grafica = any(k in p_lower for k in ["grafica", "gráfica", "graficas", "gráficas", "chart", "visual", "pastel", "torta", "barras"])
     peticion_reporte = any(k in p_lower for k in ["reporte", "informe", "balance", "resumen ejecutivo", "dashboard"])
 
@@ -2819,6 +3456,151 @@ def _normalizar_pregunta(texto):
     limpio = unicodedata.normalize('NFKD', texto).encode('ASCII', 'ignore').decode('utf-8').lower()
     return re.sub(r'[^a-z0-9\s]', '', limpio).strip()
 
+def cargar_perfil_astrid():
+    data_dir = os.path.join(current_app.root_path, "data")
+    os.makedirs(data_dir, exist_ok=True)
+    perfil_file = os.path.join(data_dir, "astrid_perfil.json")
+    if os.path.exists(perfil_file):
+        try:
+            with open(perfil_file, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {"usuarios": {}, "version": "1.0", "updated_at": datetime.datetime.now(datetime.timezone.utc).isoformat()}
+
+def guardar_perfil_astrid(data):
+    data_dir = os.path.join(current_app.root_path, "data")
+    os.makedirs(data_dir, exist_ok=True)
+    perfil_file = os.path.join(data_dir, "astrid_perfil.json")
+    try:
+        data["updated_at"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        with open(perfil_file, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        if current_app: current_app.logger.warning(f"Error guardando perfil Astrid: {e}")
+
+def cargar_entrenamiento_astrid():
+    data_dir = os.path.join(current_app.root_path, "data")
+    os.makedirs(data_dir, exist_ok=True)
+    entrenamiento_file = os.path.join(data_dir, "astrid_entrenamiento.json")
+    if os.path.exists(entrenamiento_file):
+        try:
+            with open(entrenamiento_file, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {
+        "muestras": [],
+        "metricas": {
+            "total_interacciones": 0,
+            "vocabulario_distinto": 0,
+            "intenciones_detectadas": {}
+        },
+        "updated_at": datetime.datetime.now(datetime.timezone.utc).isoformat()
+    }
+
+def guardar_entrenamiento_astrid(data):
+    data_dir = os.path.join(current_app.root_path, "data")
+    os.makedirs(data_dir, exist_ok=True)
+    entrenamiento_file = os.path.join(data_dir, "astrid_entrenamiento.json")
+    try:
+        data["updated_at"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        with open(entrenamiento_file, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        if current_app: current_app.logger.warning(f"Error guardando entrenamiento Astrid: {e}")
+
+def obtener_perfil_usuario_astrid(usuario_nombre):
+    perfiles = cargar_perfil_astrid()
+    return perfiles.get("usuarios", {}).get(usuario_nombre, {})
+
+def actualizar_perfil_y_entrenamiento_astrid(usuario_nombre, usuario_email, usuario_rol, texto, fuente="voz_directa"):
+    if not texto or len(texto.strip()) < 2:
+        return {}
+    
+    perfiles = cargar_perfil_astrid()
+    usuarios = perfiles.setdefault("usuarios", {})
+    usr_data = usuarios.setdefault(usuario_nombre, {
+        "nombre": usuario_nombre,
+        "email": usuario_email or "sin_email",
+        "rol": usuario_rol or "usuario",
+        "estilo_comunicacion": "Directo y profesional",
+        "vocabulario_frecuente": {},
+        "temas_frecuentes": {},
+        "total_interacciones": 0,
+        "primera_interaccion": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "ultima_interaccion": datetime.datetime.now(datetime.timezone.utc).isoformat()
+    })
+    
+    usr_data["total_interacciones"] += 1
+    usr_data["ultima_interaccion"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    if usuario_email: usr_data["email"] = usuario_email
+    if usuario_rol: usr_data["rol"] = usuario_rol
+    
+    t_clean = texto.strip().lower()
+    
+    # 1. Extracción y conteo de vocabulario clave (filtrando palabras vacías)
+    stopwords = {"para", "como", "esta", "este", "estos", "estas", "con", "por", "que", "los", "las", "una", "uno", "del", "mas", "pero", "sus", "sobre", "entre", "dime", "dame", "ver"}
+    palabras = [w for w in re.findall(r'[a-záéíóúñ0-9]+', t_clean) if len(w) >= 3 and w not in stopwords]
+    vocab = usr_data.setdefault("vocabulario_frecuente", {})
+    for w in palabras:
+        vocab[w] = vocab.get(w, 0) + 1
+    usr_data["vocabulario_frecuente"] = dict(sorted(vocab.items(), key=lambda x: x[1], reverse=True)[:40])
+    
+    # 2. Detección de estilo de comunicación
+    if any(k in t_clean for k in ["por favor", "buen día", "buenos días", "estimada", "agradecido", "agradecida", "saludos cordiales"]):
+        usr_data["estilo_comunicacion"] = "Cortés y protocolar"
+    elif any(k in t_clean for k in ["fino", "pana", "chamo", "epa", "qué tal", "que tal", "chévere", "chevere", "de pana"]):
+        usr_data["estilo_comunicacion"] = "Coloquial venezolano y cercano"
+    elif any(k in t_clean for k in ["kpi", "bimonetario", "pareto", "run-rate", "estadísticas", "analítica", "conciliación"]):
+        usr_data["estilo_comunicacion"] = "Ejecutivo de alta dirección y analítico"
+    elif any(k in t_clean for k in ["precio", "cuánto cuesta", "costo", "tasa", "bcv"]):
+        usr_data["estilo_comunicacion"] = "Operativo, directo y ágil"
+        
+    # 3. Mapeo de temas de negocio frecuentes
+    temas = usr_data.setdefault("temas_frecuentes", {})
+    if any(k in t_clean for k in ["precio", "costo", "drill", "tela", "catálogo", "catalogo", "ítem", "item"]):
+        temas["catálogo_y_precios"] = temas.get("catálogo_y_precios", 0) + 1
+    if any(k in t_clean for k in ["orden", "ordenes", "órdenes", "compra", "facturado", "facturación"]):
+        temas["órdenes_de_compra"] = temas.get("órdenes_de_compra", 0) + 1
+    if any(k in t_clean for k in ["tasa", "bcv", "dolar", "dólar", "euro", "promedio", "divisa"]):
+        temas["tasas_oficiales_bcv"] = temas.get("tasas_oficiales_bcv", 0) + 1
+    if any(k in t_clean for k in ["proveedor", "proveedores", "comertel", "banco", "cuenta", "rif"]):
+        temas["proveedores_y_bancos"] = temas.get("proveedores_y_bancos", 0) + 1
+    if any(k in t_clean for k in ["reporte", "grafica", "gráfica", "excel", "estadistica", "estadística", "analisis", "análisis", "jarvis"]):
+        temas["analitica_y_reportes"] = temas.get("analitica_y_reportes", 0) + 1
+    if any(k in t_clean for k in ["excelente", "bien", "como estas", "cómo estás", "ánimo", "saludo"]):
+        temas["relacion_y_cortesia"] = temas.get("relacion_y_cortesia", 0) + 1
+        
+    guardar_perfil_astrid(perfiles)
+    
+    # 4. Registro en el dataset continuo de entrenamiento
+    entrenamiento = cargar_entrenamiento_astrid()
+    muestras = entrenamiento.setdefault("muestras", [])
+    muestra = {
+        "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "usuario": usuario_nombre,
+        "fuente": fuente,
+        "texto": texto,
+        "longitud": len(texto),
+        "palabras_clave": palabras[:8],
+        "estilo_inferido": usr_data["estilo_comunicacion"]
+    }
+    muestras.append(muestra)
+    if len(muestras) > 500:
+        muestras = muestras[-500:]
+    entrenamiento["muestras"] = muestras
+    
+    metricas = entrenamiento.setdefault("metricas", {})
+    metricas["total_interacciones"] = metricas.get("total_interacciones", 0) + 1
+    todos_vocabs = set()
+    for u in usuarios.values():
+        todos_vocabs.update(u.get("vocabulario_frecuente", {}).keys())
+    metricas["vocabulario_distinto"] = len(todos_vocabs)
+    
+    guardar_entrenamiento_astrid(entrenamiento)
+    return usr_data
+
 def cargar_memoria_astrid():
     memoria_file = os.path.join(current_app.root_path, "data", "astrid_memory.json")
     if os.path.exists(memoria_file):
@@ -2900,6 +3682,18 @@ def chat_astrid():
     usuario = session.get("user_nombre", "Loreidy")
     prompt_usuario = req_data["prompt"].strip()
 
+    # Auto-entrenamiento continuo y actualización del perfil conversacional en tiempo real
+    try:
+        actualizar_perfil_y_entrenamiento_astrid(
+            usuario_nombre=usuario,
+            usuario_email=session.get("user_email", ""),
+            usuario_rol=session.get("user_rol", "usuario"),
+            texto=prompt_usuario,
+            fuente="chat_directo"
+        )
+    except Exception:
+        pass
+
     # Historial de conversación en la sesión
     historial = session.get("astrid_chat_history", [])
 
@@ -2918,9 +3712,23 @@ def chat_astrid():
         historial.append({"role": "assistant", "content": respuesta_cached, "timestamp": datetime.datetime.now().strftime("%H:%M")})
         session["astrid_chat_history"] = historial[-20:]
         session.modified = True
+
+        audio_b64 = ""
+        audio_mime = ""
+        try:
+            texto_voz = re.sub(r':::chart.*?:::', '', respuesta_cached, flags=re.DOTALL)
+            texto_voz = re.sub(r'\[.*?\]\(.*?\)', '', texto_voz)
+            texto_voz = re.sub(r'[*#_`]', '', texto_voz).strip()
+            if len(texto_voz) < 400:
+                audio_b64, audio_mime = generar_audio_astrid(texto_voz)
+        except Exception:
+            pass
+
         return jsonify({
             "success": True, 
             "respuesta": respuesta_cached,
+            "audio_b64": audio_b64,
+            "audio_mime": audio_mime,
             "cached": True,
             "historial": session["astrid_chat_history"]
         })
@@ -2936,9 +3744,22 @@ def chat_astrid():
         session["astrid_chat_history"] = historial[-20:]
         session.modified = True
 
+        audio_b64 = ""
+        audio_mime = ""
+        try:
+            texto_voz = re.sub(r':::chart.*?:::', '', respuesta_texto, flags=re.DOTALL)
+            texto_voz = re.sub(r'\[.*?\]\(.*?\)', '', texto_voz)
+            texto_voz = re.sub(r'[*#_`]', '', texto_voz).strip()
+            if len(texto_voz) < 400:
+                audio_b64, audio_mime = generar_audio_astrid(texto_voz)
+        except Exception:
+            pass
+
         return jsonify({
             "success": True, 
             "respuesta": respuesta_texto,
+            "audio_b64": audio_b64,
+            "audio_mime": audio_mime,
             "cached": False,
             "historial": session["astrid_chat_history"]
         })
@@ -2960,6 +3781,54 @@ def limpiar_chat_astrid():
     return jsonify({"success": True, "mensaje": "Conversación reiniciada"})
 
 
+@bp.route("/api/astrid/aprender", methods=["POST"])
+def aprender_astrid():
+    if "user_id" not in session:
+        return jsonify({"success": False, "error": "No autorizado"}), 401
+    
+    req_data = request.get_json(silent=True) or {}
+    texto = (req_data.get("texto") or "").strip()
+    fuente = req_data.get("fuente", "escucha_pasiva")
+    
+    if not texto or len(texto) < 3:
+        return jsonify({"success": False, "error": "Texto insuficiente para aprendizaje"}), 400
+        
+    usuario = session.get("user_nombre", "Loreidy")
+    email = session.get("user_email", "")
+    rol = session.get("user_rol", "usuario")
+    
+    perfil_actualizado = actualizar_perfil_y_entrenamiento_astrid(
+        usuario_nombre=usuario,
+        usuario_email=email,
+        usuario_rol=rol,
+        texto=texto,
+        fuente=fuente
+    )
+    
+    return jsonify({
+        "success": True,
+        "aprendido": True,
+        "usuario": usuario,
+        "perfil": perfil_actualizado
+    })
+
+
+@bp.route("/api/astrid/estado-entrenamiento", methods=["GET"])
+def estado_entrenamiento_astrid():
+    if "user_id" not in session:
+        return jsonify({"success": False, "error": "No autorizado"}), 401
+    usuario = session.get("user_nombre", "Loreidy")
+    perfil = obtener_perfil_usuario_astrid(usuario)
+    entrenamiento = cargar_entrenamiento_astrid()
+    return jsonify({
+        "success": True,
+        "usuario": usuario,
+        "perfil": perfil,
+        "total_muestras_entrenadas": len(entrenamiento.get("muestras", [])),
+        "metricas": entrenamiento.get("metricas", {})
+    })
+
+
 # -----------------------------------------------------------------------------
 # EXPORTACIONES EN FORMATO EXCEL NATIVO (.XLSX)
 # -----------------------------------------------------------------------------
@@ -2967,6 +3836,7 @@ import io
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
+from openpyxl.chart import BarChart, PieChart, Reference
 
 def _estilizar_hoja_excel(ws, headers, data_rows):
     fill_header = PatternFill(start_color="0F766E", end_color="0F766E", fill_type="solid") # Teal 700
@@ -3009,30 +3879,155 @@ def _estilizar_hoja_excel(ws, headers, data_rows):
         ws.column_dimensions[col_letter].width = max(max_len + 4, 13)
 
 
-@bp.route("/api/exportar/ordenes")
-def exportar_ordenes_raw():
-    if session.get("user_rol") != "admin":
-        return "Acceso denegado", 403
-    supabase = getattr(current_app, "supabase", None)
-    ordenes = []
-    if supabase:
-        try:
-            res = supabase.table("ordenes_compra").select("*, proyectos(nombre)").order("fecha_emision", desc=True).execute()
-            ordenes = res.data or []
-        except Exception:
-            ordenes = MOCK_ORDENES
-    else:
-        ordenes = MOCK_ORDENES
-
+def _generar_excel_analitico(ordenes, provs=None, proys=None):
+    """
+    Construye un libro de trabajo Excel ejecutivo con múltiples hojas y gráficas nativas incrustadas:
+    - Hoja 1: Dashboard y Estadísticas (KPIs, tablas de resumen, BarChart de proyectos y PieChart de proveedores).
+    - Hoja 2: Órdenes de Compra (tabla completa estilizada profesionalmente).
+    - Hoja 3: Proveedores (directorio estructurado).
+    """
     wb = openpyxl.Workbook()
-    ws = wb.active
-    ws.title = "Órdenes de Compra"
 
-    headers = ["Nro. Orden", "Fecha Emisión", "Proveedor", "RIF", "Proyecto", "Tasa BCV", "Total USD", "Total Bs", "Estado"]
-    data = []
+    # HOJA 1: Dashboard y Estadísticas
+    ws_dash = wb.active
+    ws_dash.title = "Dashboard y Estadísticas"
+    ws_dash.views.sheetView[0].showGridLines = True
+
+    # Banner Superior
+    ws_dash.merge_cells("A1:K2")
+    banner = ws_dash["A1"]
+    banner.value = "SIST-LQ CONTROL & FACTURACIÓN — INFORME EJECUTIVO Y ESTADÍSTICAS"
+    banner.font = Font(name="Arial", size=13, bold=True, color="FFFFFF")
+    banner.fill = PatternFill(start_color="0F766E", end_color="0F766E", fill_type="solid")
+    banner.alignment = Alignment(horizontal="center", vertical="center")
+
+    ordenes_activas = [o for o in ordenes if str(o.get("estado", "")).lower() != "anulada"]
+    total_usd = sum(float(o.get("total_usd") or 0) for o in ordenes_activas)
+    total_bs = sum(float(o.get("total_bs") or 0) for o in ordenes_activas)
+    tot_ord = len(ordenes_activas)
+    ticket_prom = (total_usd / tot_ord) if tot_ord > 0 else 0
+    tasas = [float(o.get("tasa_bcv") or 0) for o in ordenes_activas if float(o.get("tasa_bcv") or 0) > 0]
+    tasa_prom = (sum(tasas) / len(tasas)) if tasas else 800.0
+
+    kpi_fill = PatternFill(start_color="F0FDFA", end_color="F0FDFA", fill_type="solid")
+    kpi_border = Border(
+        left=Side(style='thin', color='99F6E4'),
+        right=Side(style='thin', color='99F6E4'),
+        top=Side(style='thin', color='99F6E4'),
+        bottom=Side(style='thin', color='99F6E4')
+    )
+
+    ws_dash["A4"] = "INDICADOR CLAVE (KPI)"
+    ws_dash["B4"] = "VALOR CONSOLIDADO"
+    ws_dash["A4"].font = Font(name="Arial", size=10, bold=True, color="0F766E")
+    ws_dash["B4"].font = Font(name="Arial", size=10, bold=True, color="0F766E")
+
+    kpi_rows = [
+        ("Total Facturado (USD)", total_usd, "$#,##0.00"),
+        ("Total Facturado (Bolívares)", total_bs, "Bs. #,##0.00"),
+        ("Total Órdenes Emitidas", tot_ord, "0"),
+        ("Ticket Promedio por Adquisición (USD)", ticket_prom, "$#,##0.00"),
+        ("Tasa Promedio Oficial BCV", tasa_prom, "#,##0.00")
+    ]
+    for idx, (label, val, fmt) in enumerate(kpi_rows, start=5):
+        c_a = ws_dash[f"A{idx}"]
+        c_b = ws_dash[f"B{idx}"]
+        c_a.value = label
+        c_b.value = val
+        c_a.font = Font(name="Arial", size=9, bold=True)
+        c_b.font = Font(name="Arial", size=9)
+        c_b.number_format = fmt
+        c_a.fill = kpi_fill
+        c_b.fill = kpi_fill
+        c_a.border = kpi_border
+        c_b.border = kpi_border
+
+    # Tabla Resumen por Proyecto
+    gasto_proy = {}
+    for o in ordenes_activas:
+        p_obj = o.get("proyectos")
+        p_nom = (p_obj.get("nombre") if isinstance(p_obj, dict) else (o.get("proyecto_nombre") or "General")).strip()
+        gasto_proy[p_nom] = gasto_proy.get(p_nom, 0.0) + float(o.get("total_usd") or 0)
+    proy_sorted = sorted(gasto_proy.items(), key=lambda x: x[1], reverse=True)
+    if not proy_sorted:
+        proy_sorted = [("General", 0.0)]
+
+    ws_dash["A12"] = "Proyecto"
+    ws_dash["B12"] = "Total USD"
+    ws_dash["A12"].font = Font(name="Arial", size=9, bold=True, color="FFFFFF")
+    ws_dash["B12"].font = Font(name="Arial", size=9, bold=True, color="FFFFFF")
+    ws_dash["A12"].fill = PatternFill(start_color="1E293B", fill_type="solid")
+    ws_dash["B12"].fill = PatternFill(start_color="1E293B", fill_type="solid")
+
+    for i, (p, val) in enumerate(proy_sorted, start=13):
+        ws_dash[f"A{i}"] = p
+        ws_dash[f"B{i}"] = round(val, 2)
+        ws_dash[f"B{i}"].number_format = "$#,##0.00"
+
+    # Gráfica Nativa de Barras (Inversión por Proyecto)
+    try:
+        chart_proy = BarChart()
+        chart_proy.type = "col"
+        chart_proy.style = 10
+        chart_proy.title = "Gasto USD por Proyecto"
+        chart_proy.y_axis.title = "USD"
+        chart_proy.x_axis.title = "Proyecto"
+        data_proy = Reference(ws_dash, min_col=2, min_row=12, max_row=12+len(proy_sorted))
+        cats_proy = Reference(ws_dash, min_col=1, min_row=13, max_row=12+len(proy_sorted))
+        chart_proy.add_data(data_proy, titles_from_data=True)
+        chart_proy.set_categories(cats_proy)
+        chart_proy.height = 8.5
+        chart_proy.width = 14
+        ws_dash.add_chart(chart_proy, "D4")
+    except Exception as e:
+        if current_app: current_app.logger.warning(f"Error creando BarChart: {e}")
+
+    # Tabla Resumen por Proveedor
+    gasto_prov = {}
+    for o in ordenes_activas:
+        pr = (o.get("proveedor_razon_social") or "Sin Proveedor").strip()
+        gasto_prov[pr] = gasto_prov.get(pr, 0.0) + float(o.get("total_usd") or 0)
+    prov_sorted = sorted(gasto_prov.items(), key=lambda x: x[1], reverse=True)
+    if not prov_sorted:
+        prov_sorted = [("Sin Proveedor", 0.0)]
+
+    row_prov_start = 14 + len(proy_sorted) + 1
+    ws_dash[f"A{row_prov_start}"] = "Proveedor"
+    ws_dash[f"B{row_prov_start}"] = "Total USD"
+    ws_dash[f"A{row_prov_start}"].font = Font(name="Arial", size=9, bold=True, color="FFFFFF")
+    ws_dash[f"B{row_prov_start}"].font = Font(name="Arial", size=9, bold=True, color="FFFFFF")
+    ws_dash[f"A{row_prov_start}"].fill = PatternFill(start_color="1E293B", fill_type="solid")
+    ws_dash[f"B{row_prov_start}"].fill = PatternFill(start_color="1E293B", fill_type="solid")
+
+    for i, (pr, val) in enumerate(prov_sorted[:8], start=row_prov_start+1):
+        ws_dash[f"A{i}"] = pr
+        ws_dash[f"B{i}"] = round(val, 2)
+        ws_dash[f"B{i}"].number_format = "$#,##0.00"
+
+    # Gráfica Nativa de Pastel (Participación por Proveedor)
+    try:
+        chart_prov = PieChart()
+        chart_prov.title = "Participación por Proveedor (USD)"
+        data_prov = Reference(ws_dash, min_col=2, min_row=row_prov_start, max_row=row_prov_start+min(len(prov_sorted), 8))
+        cats_prov = Reference(ws_dash, min_col=1, min_row=row_prov_start+1, max_row=row_prov_start+min(len(prov_sorted), 8))
+        chart_prov.add_data(data_prov, titles_from_data=True)
+        chart_prov.set_categories(cats_prov)
+        chart_prov.height = 8.5
+        chart_prov.width = 14
+        ws_dash.add_chart(chart_prov, "D19")
+    except Exception as e:
+        if current_app: current_app.logger.warning(f"Error creando PieChart: {e}")
+
+    ws_dash.column_dimensions["A"].width = 36
+    ws_dash.column_dimensions["B"].width = 18
+
+    # HOJA 2: Órdenes de Compra
+    ws_ord = wb.create_sheet(title="Órdenes de Compra")
+    headers_ord = ["Nro. Orden", "Fecha Emisión", "Proveedor", "RIF", "Proyecto", "Tasa BCV", "Total USD", "Total Bs", "Estado"]
+    data_ord = []
     for o in ordenes:
-        p_nom = o.get("proyectos", {}).get("nombre") if isinstance(o.get("proyectos"), dict) else o.get("proyecto_nombre", "GENERAL")
-        data.append([
+        p_nom = o.get("proyectos", {}).get("nombre") if isinstance(p_obj := o.get("proyectos"), dict) else o.get("proyecto_nombre", "GENERAL")
+        data_ord.append([
             o.get("nro_orden", ""),
             str(o.get("fecha_emision", ""))[:10],
             o.get("proveedor_razon_social", ""),
@@ -3043,15 +4038,75 @@ def exportar_ordenes_raw():
             float(o.get("total_bs") or 0),
             str(o.get("estado", "emitida")).upper()
         ])
+    _estilizar_hoja_excel(ws_ord, headers_ord, data_ord)
 
-    _estilizar_hoja_excel(ws, headers, data)
+    # HOJA 3: Proveedores
+    if provs:
+        ws_prov = wb.create_sheet(title="Proveedores")
+        headers_prv = ["Razón Social", "RIF", "Beneficiario", "Banco", "Nro. Cuenta", "Teléfono", "Email", "Dirección"]
+        data_prv = []
+        for p in provs:
+            data_prv.append([
+                p.get("razon_social", ""),
+                p.get("rif", ""),
+                p.get("beneficiario") or p.get("razon_social", ""),
+                p.get("banco", ""),
+                p.get("num_cuenta", ""),
+                p.get("telefono", ""),
+                p.get("email", ""),
+                p.get("direccion", "")
+            ])
+        _estilizar_hoja_excel(ws_prov, headers_prv, data_prv)
+
+    return wb
+
+
+@bp.route("/api/exportar/ordenes")
+@bp.route("/api/exportar/reporte-analitico")
+def exportar_ordenes_raw():
+    if session.get("user_rol") != "admin":
+        return "Acceso denegado", 403
+    supabase = getattr(current_app, "supabase", None)
+    ordenes = []
+    provs = []
+    if supabase:
+        try:
+            res = supabase.table("ordenes_compra").select("*, proyectos(nombre)").order("fecha_emision", desc=True).execute()
+            ordenes = res.data or []
+            r_prv = supabase.table("proveedores").select("*").execute()
+            provs = r_prv.data or []
+        except Exception:
+            ordenes = MOCK_ORDENES
+            provs = MOCK_PROVEEDORES
+    else:
+        ordenes = MOCK_ORDENES
+        provs = MOCK_PROVEEDORES
+
+    # Aplicar filtros si fueron suministrados en la URL
+    periodo = request.args.get("periodo")
+    desde = request.args.get("desde")
+    hasta = request.args.get("hasta")
+    proveedor_filtro = request.args.get("proveedor")
+    proyecto_filtro = request.args.get("proyecto")
+
+    if any([periodo, desde, hasta, proveedor_filtro, proyecto_filtro]):
+        ordenes = _filtrar_ordenes_analitica(
+            ordenes,
+            periodo=periodo,
+            desde=desde,
+            hasta=hasta,
+            proveedor=proveedor_filtro,
+            proyecto=proyecto_filtro
+        )
+
+    wb = _generar_excel_analitico(ordenes, provs=provs)
     output = io.BytesIO()
     wb.save(output)
     output.seek(0)
     return Response(
         output.getvalue(),
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": "attachment; filename=Reporte_Ordenes_SIST-LQ.xlsx"}
+        headers={"Content-Disposition": "attachment; filename=Reporte_Analitico_SIST-LQ.xlsx"}
     )
 
 

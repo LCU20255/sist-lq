@@ -92,5 +92,67 @@
     "pregunta_normalizada": "cu",
     "respuesta": "Hola Administrador Principal. Soy Astrid, el asistente inteligente y cerebro analítico del Facturador SIST-LQ.\n\nActualmente contamos con:\n• **2 órdenes de compra emitidas** (Total: $655.40 USD / Bs. 536,762.57)\n• **4 proveedores registrados** en el directorio\n• **Tasa oficial BCV:** $813.74 Bs/USD (EUR: €945.65 Bs | Promedio: $879.69 Bs)\n\nTengo acceso total para orientarte sobre precios, órdenes de compra, proveedores, auditoría, o generar reportes en Excel. ¿En qué puedo orientarte hoy?",
     "veces_consultada": 1
+  },
+  {
+    "timestamp": "2026-09-08T13:30:13.173433+00:00",
+    "usuario": "Administrador Principal",
+    "pregunta": "Astrid, dame las estadAstrid, dame las estadisticas y analisis profundo",
+    "pregunta_normalizada": "astrid dame las estadastrid dame las estadisticas y analisis profundo",
+    "respuesta": "🧠 **Diagnóstico Ejecutivo & Business Intelligence (Modo JARVIS)**\n\nHola Administrador Principal. He procesado la analítica multidimensional con acceso en tiempo real a la base de datos:\n\n📊 **Indicadores Clave de Desempeño (KPIs):**\n• **Volumen Facturado Consolidado:** **$655.40 USD** *(Equivalente oficial: **Bs. 536,762.57** a tasa BCV $814.69 Bs/USD)*\n• **Órdenes Emitidas:** **2** adquisiciones registradas de forma inmutable.\n• **Ticket Promedio:** **$327.70 USD** por orden.\n• **Tasa Oficial BCV:** $814.69 Bs/USD | **Tasa Promedio:** $880.99 Bs/USD.\n• **Run-Rate Estimado (Mensual):** **$753.71 USD** en proyección de gasto.\n\n:::chart {\"type\": \"doughnut\", \"title\": \"Concentraci\\u00f3n de Compras por Proveedor (USD)\", \"labels\": [\"COMERTEL\", \"Soluciones Tecnol\\u00f3gicas R&M S.R.L.\"], \"data\": [539.4, 116.0]}:::\n\n🏢 **Concentración de Proveedores (Pareto):**\nEl proveedor líder es **COMERTEL** con adjudicaciones por **$539.40 USD** (82.3% del volumen global):\n  • **COMERTEL**: $539.40 USD (82.3%)\n  • **Soluciones Tecnológicas R&M S.R.L.**: $116.00 USD (17.7%)\n\n🏗️ **Ejecución Presupuestaria por Proyecto:**\nEl proyecto con mayor asignación es **Mantenimiento Preventivo Planta Alfa** con **$655.40 USD** (100.0% del gasto total):\n  • **Mantenimiento Preventivo Planta Alfa**: $655.40 USD (100.0%)\n\n📥 **Descarga Ejecutiva de Reportes con Gráficas:**\n• [📊 Descargar Reporte Analítico Integral con Gráficas Nativas (.xlsx)](/api/exportar/reporte-analitico)\n• [📥 Descargar Base Completa de Órdenes (.xlsx)](/api/exportar/ordenes)",
+    "veces_consultada": 1
+  },
+  {
+    "timestamp": "2026-09-08T13:31:04.012495+00:00",
+    "usuario": "Administrador Principal",
+    "pregunta": "Astrid, quita del catalogo el producto TORNILLO HEXAGONAL",
+    "pregunta_normalizada": "astrid quita del catalogo el producto tornillo hexagonal",
+    "respuesta": "🏷️ **Catálogo Oficial de Costos y Precios (Tasa BCV: $814.69 Bs/USD | Promedio: $880.99 Bs):**\n\n• **COMPRA DE DRILL 100% ALGODON ROJO** (UND): **$5.31 USD** (Bs. 4,326.01 a tasa BCV | Bs. 4,678.08 a tasa promedio)\n• **TELA ALGODON EGIPTO COMERTEL** (Metros): **$4.65 USD** (Bs. 3,788.31 a tasa BCV | Bs. 4,096.62 a tasa promedio)\n\nPuedes pedirme convertir cualquiera a tasa promedio, tasa euro, o solicitarme actualizar sus precios.",
+    "veces_consultada": 1
+  },
+  {
+    "timestamp": "2026-09-08T13:48:59.867803+00:00",
+    "usuario": "Loreidy Quiñonez",
+    "pregunta": "Me encuentro excelente, ¿qué tal?",
+    "pregunta_normalizada": "me encuentro excelente que tal",
+    "respuesta": "¡Qué bueno! Me alegra mucho saber que te encuentras muy bien hoy, Loreidy Quiñonez.\n\nEstoy 100% activa y lista para asistirte con el catálogo de precios, órdenes de compra, proveedores o reportes ejecutivos con gráficas. ¿Qué deseas consultar o gestionar hoy?",
+    "veces_consultada": 1
+  },
+  {
+    "timestamp": "2026-09-08T13:49:01.819644+00:00",
+    "usuario": "Loreidy Quiñonez",
+    "pregunta": "Me encuentro excelente",
+    "pregunta_normalizada": "me encuentro excelente",
+    "respuesta": "¡Qué bueno! Me alegra mucho saber que te encuentras muy bien hoy, Administrador Principal.\n\nEstoy 100% activa y lista para asistirte con el catálogo de precios, órdenes de compra, proveedores o reportes ejecutivos con gráficas. ¿Qué deseas consultar o gestionar hoy?",
+    "veces_consultada": 4,
+    "ultimo_usuario": "Administrador Principal",
+    "updated_at": "2026-09-08T13:50:07.184259+00:00"
+  },
+  {
+    "timestamp": "2026-09-08T13:57:42.018958+00:00",
+    "usuario": "Loreidy Quiñonez",
+    "pregunta": "Astrid",
+    "pregunta_normalizada": "astrid",
+    "respuesta": "¡Dime, Administrador Principal! Te escucho atentamente. ¿Qué deseas consultar o gestionar hoy?",
+    "veces_consultada": 6,
+    "ultimo_usuario": "Administrador Principal",
+    "updated_at": "2026-09-08T14:00:38.328968+00:00"
+  },
+  {
+    "timestamp": "2026-09-08T13:57:46.801247+00:00",
+    "usuario": "Loreidy Quiñonez",
+    "pregunta": "Astrid, ¿cuánto cuesta el drill?",
+    "pregunta_normalizada": "astrid cuanto cuesta el drill",
+    "respuesta": "🏷️ **Catálogo Oficial de Costos y Precios (Tasa BCV: $814.69 Bs/USD | Promedio: $880.99 Bs):**\n\n• **COMPRA DE DRILL 100% ALGODON ROJO** (UND): **$5.31 USD** (Bs. 4,326.01 a tasa BCV | Bs. 4,678.08 a tasa promedio)\n\nPuedes pedirme convertir cualquiera a tasa promedio, tasa euro, o solicitarme actualizar sus precios.",
+    "veces_consultada": 2,
+    "ultimo_usuario": "Loreidy Quiñonez",
+    "updated_at": "2026-09-08T13:58:06.909447+00:00"
+  },
+  {
+    "timestamp": "2026-09-08T14:00:37.367660+00:00",
+    "usuario": "Administrador Principal",
+    "pregunta": "Oye chamo, necesitamos revisar el precio del drill para la nueva orden",
+    "pregunta_normalizada": "oye chamo necesitamos revisar el precio del drill para la nueva orden",
+    "respuesta": "🏷️ **Catálogo Oficial de Costos y Precios (Tasa BCV: $814.69 Bs/USD | Promedio: $880.99 Bs):**\n\n• **COMPRA DE DRILL 100% ALGODON ROJO** (UND): **$5.31 USD** (Bs. 4,326.01 a tasa BCV | Bs. 4,678.08 a tasa promedio)\n\nPuedes pedirme convertir cualquiera a tasa promedio, tasa euro, o solicitarme actualizar sus precios.",
+    "veces_consultada": 1
   }
 ]
